@@ -21,12 +21,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const exportCsvBtn = document.getElementById('export-csv');
 
   // Data
-  let applicants = JSON.parse(localStorage.getItem('applicants')) || [];
+  let applicants = [];
   let editingIndex = -1;
   let currentPhotoBase64 = '';
 
-  // ✅ Use your correct Google Apps Script URL here
-  const webAppUrl = "https://script.google.com/macros/s/AKfycbx8FaF2lEEA6-gieWDjmiAzrwJRjScaBmyr-mPk1XKMj_aqQ7MVS6ENfravZmq7ew_i/exec";
+  // ✅ Use your Google Apps Script Web App URL here
+  const webAppUrl = "https://script.google.com/macros/s/AKfycbzV4bShVD6NAONZgO9rqgmqDK4rhPlWzRfrRGCtQ1OUVx1qzfn62RlElRqSoP-7OgI/exec";
 
   // Helpers
   function showToast(text, bg = '#16a34a') {
@@ -53,13 +53,40 @@ document.addEventListener('DOMContentLoaded', () => {
     return isNaN(age) ? '' : age;
   }
 
+  function formatNumber(v) { return isNaN(v) ? '0.00' : Number(v).toFixed(2); }
+  function escapeHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
+
+  // ---------- FETCH DATA FROM GOOGLE SHEET ----------
+  async function fetchApplicants() {
+    try {
+      const res = await fetch(webAppUrl);
+      const data = await res.json();
+      if (data.result === 'success' && data.applicants) {
+        applicants = data.applicants.map((row, idx) => ({
+          sheetRow: idx + 2, // header row is 1
+          name: row[1] || '',
+          passport: row[2] || '',
+          mobile: row[3] || '',
+          jobProfile: row[4] || '',
+          dob: row[5] || '',
+          address: row[6] || '',
+          status: row[7] || '',
+          advance: Number(row[8]) || 0,
+          final: Number(row[9]) || 0,
+          photo: row[10] || ''
+        }));
+        applyFilters();
+      } else showToast('Failed to load data','#b91c1c');
+    } catch(err) { console.error(err); showToast('Error fetching data','#b91c1c'); }
+  }
+
+  // ---------- RENDER TABLE ----------
   function renderTable(filtered = applicants) {
     tableBody.innerHTML = '';
     if (!filtered.length) {
       tableBody.innerHTML = `<tr><td colspan="10" class="px-4 py-6 text-center text-gray-500">No applicants found</td></tr>`;
       return;
     }
-
     filtered.forEach((app, idx) => {
       const tr = document.createElement('tr');
       tr.className = 'hover:bg-gray-50';
@@ -68,8 +95,8 @@ document.addEventListener('DOMContentLoaded', () => {
 <td class="px-4 py-3">${app.photo ? `<img src="${app.photo}" class="photo-thumb">` : `<div class="photo-thumb bg-gray-100"></div>`}</td>
 <td class="px-4 py-3">${escapeHtml(app.name)}</td>
 <td class="px-4 py-3 font-mono">${escapeHtml(app.passport)}</td>
-<td class="px-4 py-3">${escapeHtml(app.mobile || '')}</td>
-<td class="px-4 py-3">${escapeHtml(app.jobProfile || '')}</td>
+<td class="px-4 py-3">${escapeHtml(app.mobile||'')}</td>
+<td class="px-4 py-3">${escapeHtml(app.jobProfile||'')}</td>
 <td class="px-4 py-3">${age}</td>
 <td class="px-4 py-3"><span class="status-badge ${getStatusClass(app.status)}">${escapeHtml(app.status)}</span></td>
 <td class="px-4 py-3">₹${formatNumber(app.advance)}</td>
@@ -83,11 +110,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function formatNumber(v) { return isNaN(v) ? '0.00' : Number(v).toFixed(2); }
-  function escapeHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
-  function persist() { localStorage.setItem('applicants', JSON.stringify(applicants)); }
+  // ---------- FILTERS ----------
+  function applyFilters(){ 
+    const q=(searchInput.value||'').toLowerCase().trim(); 
+    const f=filterSelect.value; 
+    const filtered=applicants.filter(a=>((a.name||'').toLowerCase().includes(q)||(a.passport||'').toLowerCase().includes(q))&&(!f||a.status===f)); 
+    renderTable(filtered); 
+  }
+  searchInput.addEventListener('input',applyFilters);
+  filterSelect.addEventListener('change',applyFilters);
 
-  // Add/Edit Modal
+  // ---------- ADD/EDIT MODAL ----------
   addBtn.addEventListener('click', () => {
     editingIndex = -1;
     modalTitle.textContent = 'Add Applicant';
@@ -96,7 +129,6 @@ document.addEventListener('DOMContentLoaded', () => {
     photoPreview.innerHTML = '';
     modal.classList.remove('hidden');
   });
-
   closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
   cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
 
@@ -107,24 +139,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if(!file.type.startsWith('image/')) { showToast('Upload image file','#b91c1c'); photoInput.value=''; return; }
     if(file.size>2*1024*1024) { showToast('Image <2MB','#b91c1c'); photoInput.value=''; return; }
     const reader = new FileReader(); 
-    reader.onload=()=>{ 
-      currentPhotoBase64=reader.result; 
-      photoPreview.innerHTML=`<img src="${currentPhotoBase64}" class="details-photo">`; 
-    }; 
+    reader.onload=()=>{ currentPhotoBase64=reader.result; photoPreview.innerHTML=`<img src="${currentPhotoBase64}" class="details-photo">`; }; 
     reader.readAsDataURL(file);
   });
 
   // Passport & Mobile input validation
   document.getElementById('passport').addEventListener('input', e=>{
-    let v=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
-    if(v.length>8)v=v.slice(0,8);
-    e.target.value=v;
+    let v=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(v.length>8)v=v.slice(0,8); e.target.value=v;
   });
   document.getElementById('mobile').addEventListener('input', e=>{
     e.target.value=e.target.value.replace(/[^0-9]/g,'').slice(0,10);
   });
 
-  // ✅ Submit (Add/Edit)
+  // ---------- SUBMIT FORM ----------
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const name = document.getElementById('name').value.trim();
@@ -143,80 +170,53 @@ document.addEventListener('DOMContentLoaded', () => {
     const record={ name, passport, dob, address, mobile, jobProfile, status, advance, final: finalAmt, photo: currentPhotoBase64||'' };
 
     if(editingIndex>=0){
-      // Edit
-      const rowIndex = applicants[editingIndex].sheetRow || (editingIndex+2);
+      const rowIndex = applicants[editingIndex].sheetRow;
       fetch(webAppUrl,{
         method:"POST",
         body: JSON.stringify({ action:"edit", rowIndex, ...record })
       }).then(r=>r.json()).then(res=>{
-        if(res.result==="success"){
-          applicants[editingIndex]={...record,sheetRow: rowIndex};
-          persist(); renderTable(); showToast('Applicant updated','#0ea5a2');
-          modal.classList.add('hidden'); editingIndex=-1;
-        } else showToast(res.message||'Error','#b91c1c');
+        if(res.result==="success"){ applicants[editingIndex]={...record,sheetRow:rowIndex}; showToast('Applicant updated','#0ea5a2'); modal.classList.add('hidden'); fetchApplicants(); editingIndex=-1;}
+        else showToast(res.message||'Error','#b91c1c');
       }).catch(err=>{ console.error(err); showToast('Error','#b91c1c'); });
     } else {
-      // ✅ Add (fixed)
-      fetch(webAppUrl,{
-        method:"POST",
-        body: JSON.stringify({ action:"add", ...record })
-      })
-      .then(r=>r.json())
-      .then(res=>{
-        if(res.result==="success"){
-          record.sheetRow = applicants.length+2;
-          applicants.push(record);
-          persist(); renderTable();
-          form.reset(); photoPreview.innerHTML=''; currentPhotoBase64='';
-          modal.classList.add('hidden');
-          showToast('Applicant added successfully','#16a34a');
-        } else showToast(res.message||'Error','#b91c1c');
-      })
-      .catch(err=>{ console.error(err); showToast('Error connecting to Google Sheet','#b91c1c'); });
+      fetch(webAppUrl,{ method:"POST", body: JSON.stringify({ action:"add", ...record }) })
+      .then(r=>r.json()).then(res=>{
+        if(res.result==="success"){ showToast('Applicant added','#16a34a'); modal.classList.add('hidden'); fetchApplicants(); form.reset(); photoPreview.innerHTML=''; currentPhotoBase64=''; }
+        else showToast(res.message||'Error','#b91c1c');
+      }).catch(err=>{ console.error(err); showToast('Error','#b91c1c'); });
     }
   });
 
-  window.editApplicant = function(idx){ 
-    const a=applicants[idx]; if(!a) return; 
-    editingIndex=idx; modalTitle.textContent='Edit Applicant'; 
-    document.getElementById('name').value=a.name; 
-    document.getElementById('passport').value=a.passport; 
-    document.getElementById('dob').value=a.dob; 
-    document.getElementById('address').value=a.address; 
-    document.getElementById('mobile').value=a.mobile; 
-    document.getElementById('jobProfile').value=a.jobProfile; 
-    document.getElementById('status').value=a.status; 
-    document.getElementById('advance').value=a.advance; 
-    document.getElementById('final').value=a.final; 
-    currentPhotoBase64=a.photo||''; 
-    photoPreview.innerHTML=a.photo?`<img src="${a.photo}" class="details-photo">`:''; 
-    modal.classList.remove('hidden'); 
+  // ---------- VIEW / EDIT / DELETE ----------
+  window.editApplicant = function(idx){
+    const a=applicants[idx]; if(!a) return; editingIndex=idx; modalTitle.textContent='Edit Applicant';
+    document.getElementById('name').value=a.name;
+    document.getElementById('passport').value=a.passport;
+    document.getElementById('dob').value=a.dob;
+    document.getElementById('address').value=a.address;
+    document.getElementById('mobile').value=a.mobile;
+    document.getElementById('jobProfile').value=a.jobProfile;
+    document.getElementById('status').value=a.status;
+    document.getElementById('advance').value=a.advance;
+    document.getElementById('final').value=a.final;
+    currentPhotoBase64=a.photo||'';
+    photoPreview.innerHTML=a.photo?`<img src="${a.photo}" class="details-photo">`:'';
+    modal.classList.remove('hidden');
   };
 
-  window.deleteApplicant = function(idx){ 
-    if(!confirm('Delete this applicant?')) return; 
-    const rowIndex = applicants[idx].sheetRow || (idx+2); 
-    fetch(webAppUrl,{ 
-      method:"POST", 
-      body:JSON.stringify({action:"delete", rowIndex}) 
-    })
-    .then(r=>r.json())
-    .then(res=>{ 
-      if(res.result==="success"){ 
-        applicants.splice(idx,1); persist(); renderTable(); showToast('Deleted','#dc2626'); 
-      } else showToast(res.message||'Error','#b91c1c'); 
-    })
-    .catch(err=>{ console.error(err); showToast('Error','#b91c1c'); }); 
+  window.deleteApplicant = function(idx){
+    if(!confirm('Delete this applicant?')) return;
+    const rowIndex = applicants[idx].sheetRow;
+    fetch(webAppUrl,{ method:"POST", body:JSON.stringify({ action:"delete", rowIndex }) })
+    .then(r=>r.json()).then(res=>{
+      if(res.result==="success"){ showToast('Deleted','#dc2626'); fetchApplicants(); }
+      else showToast(res.message||'Error','#b91c1c');
+    }).catch(err=>{ console.error(err); showToast('Error','#b91c1c'); });
   };
 
-  window.viewApplicant = function(idx){ 
-    const a=applicants[idx]; if(!a) return; 
-    const age=calculateAge(a.dob); 
-    const progress = a.status==='Visa Received'?100:
-                     a.status==='Departure'?90:
-                     a.status==='Visa In Process'?60:
-                     a.status==='On Hold'?30:
-                     a.status==='Visa Rejected'?10:0; 
+  window.viewApplicant = function(idx){
+    const a=applicants[idx]; if(!a) return;
+    const age=calculateAge(a.dob);
     detailsContent.innerHTML=`<div class="flex gap-4 items-start">
       ${a.photo?`<img src="${a.photo}" class="details-photo">`:`<div class="details-photo bg-gray-100"></div>`}
       <div><h3 class="text-xl font-semibold mb-1">${escapeHtml(a.name)}</h3>
@@ -225,41 +225,25 @@ document.addEventListener('DOMContentLoaded', () => {
       <p><strong>Job Profile:</strong> ${escapeHtml(a.jobProfile||'')}</p>
       <p><strong>DOB:</strong> ${escapeHtml(a.dob||'')} (${age?age+' yrs':''})</p>
       <p><strong>Address:</strong> ${escapeHtml(a.address||'')}</p>
-      <p><strong>Status:</strong> <span class="status-badge ${getStatusClass(a.status)}">${escapeHtml(a.status)}</span></p>
-      <div class="progress-bar mt-2"><div class="progress-fill" style="width:${progress}%;"></div></div></div></div>
-      <div class="mt-2"><p><strong>Advance:</strong> ₹${formatNumber(a.advance)}</p>
-      <p><strong>Final:</strong> ₹${formatNumber(a.final)}</p>
-      <p><strong>Total:</strong> ₹${formatNumber(a.advance+a.final)}</p></div>`;
-    detailsModal.classList.remove('hidden'); 
+      <p><strong>Status:</strong> <span class="status-badge ${getStatusClass(a.status)}">${escapeHtml(a.status)}</span></p></div>`;
+    detailsModal.classList.remove('hidden');
   };
 
   closeDetails.addEventListener('click',()=>detailsModal.classList.add('hidden'));
   closeDetails2.addEventListener('click',()=>detailsModal.classList.add('hidden'));
 
-  // Filters & CSV export
-  function applyFilters(){ 
-    const q=(searchInput.value||'').toLowerCase().trim(); 
-    const f=filterSelect.value; 
-    const filtered=applicants.filter(a=>((a.name||'').toLowerCase().includes(q)||(a.passport||'').toLowerCase().includes(q))&&(!f||a.status===f)); 
-    renderTable(filtered); 
-  }
-  searchInput.addEventListener('input',applyFilters);
-  filterSelect.addEventListener('change',applyFilters);
-
+  // ---------- EXPORT CSV ----------
   exportCsvBtn.addEventListener('click',()=>{
     if(!applicants.length){showToast('No data','#b91c1c'); return;}
     const csv = Papa.unparse(applicants.map(a=>({
       name:a.name, passport:a.passport, mobile:a.mobile, jobProfile:a.jobProfile, 
-      dob:a.dob, age:calculateAge(a.dob), address:a.address, 
-      status:a.status, advance:a.advance, final:a.final
+      dob:a.dob, age:calculateAge(a.dob), address:a.address, status:a.status, advance:a.advance, final:a.final
     })));
-    const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'}); 
-    const url=URL.createObjectURL(blob);
-    const aTag=document.createElement('a'); 
-    aTag.href=url; aTag.download='visatracker_applicants.csv'; 
-    document.body.appendChild(aTag); aTag.click(); aTag.remove(); 
-    URL.revokeObjectURL(url); showToast('CSV exported','#0ea5a2');
+    const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob); const aTag=document.createElement('a'); aTag.href=url; aTag.download='visatracker_applicants.csv';
+    document.body.appendChild(aTag); aTag.click(); aTag.remove(); URL.revokeObjectURL(url); showToast('CSV exported','#0ea5a2');
   });
 
-  renderTable();
+  // ---------- INITIAL FETCH ----------
+  fetchApplicants();
 });
