@@ -1,4 +1,4 @@
-// VisaTracker - script.js (updated with Mobile, Job Profile, and Age)
+// VisaTracker - script.js (Google Sheets Integration)
 document.addEventListener('DOMContentLoaded', () => {
   // Elements
   const addBtn = document.getElementById('add-applicant');
@@ -24,6 +24,9 @@ document.addEventListener('DOMContentLoaded', () => {
   let applicants = JSON.parse(localStorage.getItem('applicants')) || [];
   let editingIndex = -1;
   let currentPhotoBase64 = '';
+
+  // Google Apps Script Web App URL
+  const webAppUrl = "https://script.google.com/macros/s/AKfycbxCXmS6MsQ_XmL6VKWo72lnCZrVfiC3f0np1br1caJ36efsefaHr-J4k8q1c21U5osB/exec";
 
   // Helpers
   function showToast(text, bg = '#16a34a') {
@@ -56,11 +59,10 @@ document.addEventListener('DOMContentLoaded', () => {
     return isNaN(age) ? '' : age;
   }
 
-  // Render table rows
   function renderTable(filtered = applicants) {
     tableBody.innerHTML = '';
     if (!filtered.length) {
-      tableBody.innerHTML = `<tr><td colspan="9" class="px-4 py-6 text-center text-gray-500">No applicants found</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="10" class="px-4 py-6 text-center text-gray-500">No applicants found</td></tr>`;
       return;
     }
 
@@ -86,32 +88,24 @@ document.addEventListener('DOMContentLoaded', () => {
     <button class="px-2 py-1 bg-red-600 text-white rounded" onclick="deleteApplicant(${idx})">Delete</button>
   </td>
 `;
-
       tableBody.appendChild(tr);
     });
   }
 
-  // Utility: format number safely
   function formatNumber(v) {
     if (v === undefined || v === null || isNaN(v)) return '0.00';
     return Number(v).toFixed(2);
   }
 
-  // Utility: simple escape
   function escapeHtml(s) {
     if (!s && s !== 0) return '';
-    return String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  // Save to localStorage
   function persist() {
     localStorage.setItem('applicants', JSON.stringify(applicants));
   }
 
-  // Open modal to add
   addBtn.addEventListener('click', () => {
     editingIndex = -1;
     modalTitle.textContent = 'Add Applicant';
@@ -121,11 +115,9 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.classList.remove('hidden');
   });
 
-  // Close modal handlers
   closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
   cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
 
-  // Photo upload and preview
   photoInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) {
@@ -151,7 +143,6 @@ document.addEventListener('DOMContentLoaded', () => {
     reader.readAsDataURL(file);
   });
 
-  // Passport input: allow only alphanumeric and max 8
   const passportInput = document.getElementById('passport');
   passportInput.addEventListener('input', (e) => {
     let v = e.target.value.toUpperCase();
@@ -160,16 +151,13 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.value = v;
   });
 
-  // Mobile number validation
   const mobileInput = document.getElementById('mobile');
   mobileInput.addEventListener('input', (e) => {
     e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
   });
 
-  // Submit handler (Add / Edit)
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-
     const name = document.getElementById('name').value.trim();
     const passport = document.getElementById('passport').value.trim();
     const dob = document.getElementById('dob').value;
@@ -192,44 +180,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const record = {
       name, passport, dob, address, mobile, jobProfile,
-      status, advance: Number(advance), final: Number(finalAmt),
+      status, advance, final: finalAmt,
       photo: currentPhotoBase64 || ''
     };
 
-   const webAppUrl = "https://script.google.com/macros/s/AKfycbxCXmS6MsQ_XmL6VKWo72lnCZrVfiC3f0np1br1caJ36efsefaHr-J4k8q1c21U5osB/exec"; // 
-
-if (editingIndex >= 0) {
-  // Optional: handle edit updates on Sheet if needed
-  showToast('Editing on Sheet not implemented yet', '#f59e0b');
-  editingIndex = -1;
-  modal.classList.add('hidden');
-} else {
-  fetch(webAppUrl, {
-    method: "POST",
-    body: JSON.stringify(record)
-  })
-  .then(res => res.json())
-  .then(result => {
-    if (result.result === "success") {
-      showToast('Applicant added to Google Sheet!', '#16a34a');
-      form.reset();
-      photoPreview.innerHTML = '';
-      currentPhotoBase64 = '';
+    if (editingIndex >= 0) {
+      applicants[editingIndex] = record;
+      persist();
+      renderTable();
+      showToast('Applicant updated locally', '#0ea5a2');
+      editingIndex = -1;
       modal.classList.add('hidden');
     } else {
-      showToast('Error adding applicant', '#b91c1c');
+      // Add to Google Sheet via Web App
+      fetch(webAppUrl, {
+        method: "POST",
+        body: JSON.stringify(record)
+      })
+      .then(res => res.json())
+      .then(result => {
+        if (result.result === "success") {
+          applicants.push(record); // keep local copy
+          persist();
+          renderTable();
+          form.reset();
+          photoPreview.innerHTML = '';
+          currentPhotoBase64 = '';
+          modal.classList.add('hidden');
+          showToast('Applicant added to Google Sheet!', '#16a34a');
+        } else {
+          showToast('Error adding applicant', '#b91c1c');
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        showToast('Error adding applicant', '#b91c1c');
+      });
     }
-  })
-  .catch(err => {
-    console.error(err);
-    showToast('Error adding applicant', '#b91c1c');
-  });
-}
-
   });
 
-  // Edit (exposed globally)
-  window.editApplicant = function (index) {
+  // Expose Edit, Delete, View
+  window.editApplicant = function(index) {
     const a = applicants[index];
     if (!a) return;
     editingIndex = index;
@@ -248,43 +239,40 @@ if (editingIndex >= 0) {
     modal.classList.remove('hidden');
   };
 
-  // Delete (exposed globally)
-  window.deleteApplicant = function (index) {
+  window.deleteApplicant = function(index) {
     if (!confirm('Delete this applicant?')) return;
     applicants.splice(index, 1);
+    persist();
     renderTable();
     showToast('Applicant deleted', '#dc2626');
   };
 
-  // View (exposed globally)
-  window.viewApplicant = function (index) {
+  window.viewApplicant = function(index) {
     const a = applicants[index];
     if (!a) return;
     const total = Number(a.advance || 0) + Number(a.final || 0);
-    const progress =
-      a.status === 'Visa Received' ? 100 :
-      a.status === 'Departure' ? 90 :
-      a.status === 'Visa In Process' ? 60 :
-      a.status === 'On Hold' ? 30 :
-      a.status === 'Visa Rejected' ? 10 : 0;
-
     const age = calculateAge(a.dob);
+    const progress = a.status === 'Visa Received' ? 100 :
+                     a.status === 'Departure' ? 90 :
+                     a.status === 'Visa In Process' ? 60 :
+                     a.status === 'On Hold' ? 30 :
+                     a.status === 'Visa Rejected' ? 10 : 0;
 
     detailsContent.innerHTML = `
       <div class="flex gap-4 items-start">
-        ${a.photo ? `<img src="${a.photo}" class="details-photo" alt="photo">` : `<div class="details-photo bg-gray-100"></div>`}
+        ${a.photo ? `<img src="${a.photo}" class="details-photo">` : `<div class="details-photo bg-gray-100"></div>`}
         <div>
           <h3 class="text-xl font-semibold mb-1">${escapeHtml(a.name)}</h3>
-          <p class="text-sm"><strong>Passport:</strong> ${escapeHtml(a.passport)}</p>
-          <p class="text-sm"><strong>Mobile:</strong> ${escapeHtml(a.mobile || '')}</p>
-          <p class="text-sm"><strong>Job Profile:</strong> ${escapeHtml(a.jobProfile || '')}</p>
-          <p class="text-sm"><strong>DOB:</strong> ${escapeHtml(a.dob || '')} (${age ? age + ' years old' : ''})</p>
-          <p class="text-sm"><strong>Address:</strong> ${escapeHtml(a.address || '')}</p>
-          <p class="text-sm mt-2"><strong>Status:</strong> <span class="status-badge ${getStatusClass(a.status)}">${escapeHtml(a.status)}</span></p>
-          <div class="progress-bar mt-3"><div class="progress-fill" style="width: ${progress}%;"></div></div>
+          <p><strong>Passport:</strong> ${escapeHtml(a.passport)}</p>
+          <p><strong>Mobile:</strong> ${escapeHtml(a.mobile || '')}</p>
+          <p><strong>Job Profile:</strong> ${escapeHtml(a.jobProfile || '')}</p>
+          <p><strong>DOB:</strong> ${escapeHtml(a.dob || '')} (${age ? age + ' yrs' : ''})</p>
+          <p><strong>Address:</strong> ${escapeHtml(a.address || '')}</p>
+          <p><strong>Status:</strong> <span class="status-badge ${getStatusClass(a.status)}">${escapeHtml(a.status)}</span></p>
+          <div class="progress-bar mt-2"><div class="progress-fill" style="width: ${progress}%;"></div></div>
         </div>
       </div>
-      <div class="mt-4">
+      <div class="mt-2">
         <p><strong>Advance:</strong> ₹${formatNumber(a.advance)}</p>
         <p><strong>Final:</strong> ₹${formatNumber(a.final)}</p>
         <p><strong>Total:</strong> ₹${formatNumber(total)}</p>
@@ -296,7 +284,6 @@ if (editingIndex >= 0) {
   closeDetails.addEventListener('click', () => detailsModal.classList.add('hidden'));
   closeDetails2.addEventListener('click', () => detailsModal.classList.add('hidden'));
 
-  // Search & filter
   function applyFilters() {
     const q = (searchInput.value || '').toLowerCase().trim();
     const f = filterSelect.value;
@@ -311,7 +298,6 @@ if (editingIndex >= 0) {
   searchInput.addEventListener('input', applyFilters);
   filterSelect.addEventListener('change', applyFilters);
 
-  // Export CSV
   exportCsvBtn.addEventListener('click', () => {
     if (!applicants.length) { showToast('No data to export', '#b91c1c'); return; }
     const csv = Papa.unparse(applicants.map(a => ({
@@ -339,4 +325,4 @@ if (editingIndex >= 0) {
   });
 
   renderTable();
-}); // DOMContentLoaded end
+});
