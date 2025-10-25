@@ -1,4 +1,4 @@
-// VisaTracker - script.js (Google Sheets Integration with Add/Edit/Delete)
+// VisaTracker - script.js (Google Sheets full integration)
 document.addEventListener('DOMContentLoaded', () => {
   // Elements
   const addBtn = document.getElementById('add-applicant');
@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentPhotoBase64 = '';
 
   // Google Apps Script Web App URL
-  const webAppUrl = "https://script.google.com/macros/s/AKfycbyMx9tM-NVAXXMnVYUNeEICN2YKZkgI8NG5E2hxGmZSNpwDK5swEN_vwPw36fKul2E/exec";
+  const webAppUrl = "https://script.google.com/macros/s/AKfycbwBJTi4wNu06MIY42w1aQfHjWQfQgbqj3kvftBYHYZW8a6aC9j2tXM3IOr_nOk8zmfT/exec";
 
   // Helpers
   function showToast(text, bg = '#16a34a') {
@@ -83,158 +83,88 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  function formatNumber(v) { return (v === undefined || isNaN(v)) ? '0.00' : Number(v).toFixed(2); }
-  function escapeHtml(s) { if (!s && s !== 0) return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function formatNumber(v) { return isNaN(v) ? '0.00' : Number(v).toFixed(2); }
+  function escapeHtml(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
   function persist() { localStorage.setItem('applicants', JSON.stringify(applicants)); }
 
-  // Modal open
-  addBtn.addEventListener('click', () => { editingIndex = -1; modalTitle.textContent = 'Add Applicant'; form.reset(); currentPhotoBase64 = ''; photoPreview.innerHTML = ''; modal.classList.remove('hidden'); });
+  // Add/Edit Modal
+  addBtn.addEventListener('click', () => { editingIndex = -1; modalTitle.textContent = 'Add Applicant'; form.reset(); currentPhotoBase64=''; photoPreview.innerHTML=''; modal.classList.remove('hidden'); });
   closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
   cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
 
   // Photo preview
   photoInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
-    if (!file) { currentPhotoBase64 = ''; photoPreview.innerHTML = ''; return; }
-    if (!file.type.startsWith('image/')) { showToast('Please upload an image file', '#b91c1c'); photoInput.value=''; return; }
-    if (file.size > 2*1024*1024) { showToast('Image must be less than 2 MB', '#b91c1c'); photoInput.value=''; return; }
-    const reader = new FileReader();
-    reader.onload = () => { currentPhotoBase64 = reader.result; photoPreview.innerHTML = `<img src="${currentPhotoBase64}" class="details-photo">`; };
-    reader.readAsDataURL(file);
+    if (!file) { currentPhotoBase64=''; photoPreview.innerHTML=''; return; }
+    if(!file.type.startsWith('image/')) { showToast('Upload image file','#b91c1c'); photoInput.value=''; return; }
+    if(file.size>2*1024*1024) { showToast('Image <2MB','#b91c1c'); photoInput.value=''; return; }
+    const reader = new FileReader(); reader.onload=()=>{ currentPhotoBase64=reader.result; photoPreview.innerHTML=`<img src="${currentPhotoBase64}" class="details-photo">`; }; reader.readAsDataURL(file);
   });
 
-  // Passport & mobile input
-  const passportInput = document.getElementById('passport');
-  passportInput.addEventListener('input', (e) => { let v=e.target.value.toUpperCase(); v=v.replace(/[^A-Z0-9]/g,''); if(v.length>8)v=v.slice(0,8); e.target.value=v; });
-  const mobileInput = document.getElementById('mobile');
-  mobileInput.addEventListener('input',(e)=>{ e.target.value=e.target.value.replace(/[^0-9]/g,'').slice(0,10); });
+  // Passport & Mobile input validation
+  document.getElementById('passport').addEventListener('input', e=>{ let v=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(v.length>8)v=v.slice(0,8); e.target.value=v; });
+  document.getElementById('mobile').addEventListener('input', e=>{ e.target.value=e.target.value.replace(/[^0-9]/g,'').slice(0,10); });
 
-  // Submit form
+  // Submit
   form.addEventListener('submit', (e) => {
     e.preventDefault();
-    const name=document.getElementById('name').value.trim();
-    const passport=document.getElementById('passport').value.trim();
-    const dob=document.getElementById('dob').value;
-    const address=document.getElementById('address').value.trim();
-    const mobile=document.getElementById('mobile').value.trim();
-    const jobProfile=document.getElementById('jobProfile').value.trim();
-    const status=document.getElementById('status').value;
-    const advance=parseFloat(document.getElementById('advance').value)||0;
-    const finalAmt=parseFloat(document.getElementById('final').value)||0;
+    const name = document.getElementById('name').value.trim();
+    const passport = document.getElementById('passport').value.trim();
+    const dob = document.getElementById('dob').value;
+    const address = document.getElementById('address').value.trim();
+    const mobile = document.getElementById('mobile').value.trim();
+    const jobProfile = document.getElementById('jobProfile').value.trim();
+    const status = document.getElementById('status').value;
+    const advance = parseFloat(document.getElementById('advance').value) || 0;
+    const finalAmt = parseFloat(document.getElementById('final').value) || 0;
 
-    if(!/^[A-Z0-9]{8}$/.test(passport)){showToast('Passport must be exactly 8 alphanumeric characters','#b91c1c'); return;}
-    if(!/^[0-9]{10}$/.test(mobile)){showToast('Enter a valid 10-digit mobile number','#b91c1c'); return;}
+    if(!/^[A-Z0-9]{8}$/.test(passport)){ showToast('Passport 8 chars','#b91c1c'); return; }
+    if(!/^[0-9]{10}$/.test(mobile)){ showToast('Mobile 10 digits','#b91c1c'); return; }
 
-    const record={name,passport,dob,address,mobile,jobProfile,status,advance,final:finalAmt,photo:currentPhotoBase64||''};
+    const record={ name, passport, dob, address, mobile, jobProfile, status, advance, final: finalAmt, photo: currentPhotoBase64||'' };
 
     if(editingIndex>=0){
-      // Edit locally and in sheet
-      record.rowIndex=editingIndex+2; // Row in Sheet (1 header row)
-      fetch(webAppUrl,{method:"POST",body:JSON.stringify({...record,action:'edit'})})
-      .then(res=>res.json())
-      .then(result=>{
-        if(result.result==="success"){
-          applicants[editingIndex]=record;
-          persist(); renderTable();
-          showToast('Applicant updated!', '#0ea5a2'); modal.classList.add('hidden'); editingIndex=-1;
-        } else showToast('Error updating applicant','#b91c1c');
-      }).catch(err=>{ console.error(err); showToast('Error updating applicant','#b91c1c'); });
+      // Edit
+      const rowIndex = applicants[editingIndex].sheetRow || (editingIndex+2); // Fallback row index
+      fetch(webAppUrl,{
+        method:"POST",
+        body: JSON.stringify({ action:"edit", rowIndex, ...record })
+      }).then(r=>r.json()).then(res=>{
+        if(res.result==="success"){
+          applicants[editingIndex]={...record,sheetRow: rowIndex};
+          persist(); renderTable(); showToast('Applicant updated','#0ea5a2'); modal.classList.add('hidden'); editingIndex=-1;
+        } else showToast(res.message||'Error','#b91c1c');
+      }).catch(err=>{ console.error(err); showToast('Error','#b91c1c'); });
     } else {
-      // Add new
-      fetch(webAppUrl,{method:"POST",body:JSON.stringify({...record,action:'add'})})
-      .then(res=>res.json())
-      .then(result=>{
-        if(result.result==="success"){
-          applicants.push(record); persist(); renderTable(); form.reset(); photoPreview.innerHTML=''; currentPhotoBase64='';
-          modal.classList.add('hidden'); showToast('Applicant added to Google Sheet!','#16a34a');
-        } else showToast('Error adding applicant','#b91c1c');
-      }).catch(err=>{ console.error(err); showToast('Error adding applicant','#b91c1c'); });
+      // Add
+      fetch(webAppUrl,{ method:"POST", body: JSON.stringify(record) })
+      .then(r=>r.json()).then(res=>{
+        if(res.result==="success"){
+          record.sheetRow = applicants.length+2; // track row in Sheet
+          applicants.push(record); persist(); renderTable(); form.reset(); photoPreview.innerHTML=''; currentPhotoBase64=''; modal.classList.add('hidden'); showToast('Applicant added','#16a34a');
+        } else showToast(res.message||'Error','#b91c1c');
+      }).catch(err=>{ console.error(err); showToast('Error','#b91c1c'); });
     }
   });
 
   // Edit/Delete/View
-  window.editApplicant=function(index){
-    const a=applicants[index]; if(!a) return;
-    editingIndex=index; modalTitle.textContent='Edit Applicant';
-    document.getElementById('name').value=a.name;
-    document.getElementById('passport').value=a.passport;
-    document.getElementById('dob').value=a.dob;
-    document.getElementById('address').value=a.address;
-    document.getElementById('mobile').value=a.mobile;
-    document.getElementById('jobProfile').value=a.jobProfile;
-    document.getElementById('status').value=a.status;
-    document.getElementById('advance').value=a.advance;
-    document.getElementById('final').value=a.final;
-    currentPhotoBase64=a.photo||''; photoPreview.innerHTML=a.photo?`<img src="${a.photo}" class="details-photo">`:'';
-    modal.classList.remove('hidden');
-  };
-
-  window.deleteApplicant=function(index){
-    if(!confirm('Delete this applicant?')) return;
-    const record=applicants[index];
-    record.rowIndex=index+2;
-    fetch(webAppUrl,{method:"POST",body:JSON.stringify({...record,action:'delete'})})
-    .then(res=>res.json())
-    .then(result=>{
-      if(result.result==="success"){
-        applicants.splice(index,1); persist(); renderTable();
-        showToast('Applicant deleted','#dc2626');
-      } else showToast('Error deleting applicant','#b91c1c');
-    }).catch(err=>{ console.error(err); showToast('Error deleting applicant','#b91c1c'); });
-  };
-
-  window.viewApplicant=function(index){
-    const a=applicants[index]; if(!a) return;
-    const total=Number(a.advance||0)+Number(a.final||0);
-    const age=calculateAge(a.dob);
-    const progress=a.status==='Visa Received'?100:a.status==='Departure'?90:a.status==='Visa In Process'?60:a.status==='On Hold'?30:a.status==='Visa Rejected'?10:0;
-    detailsContent.innerHTML=`
-      <div class="flex gap-4 items-start">
-        ${a.photo?`<img src="${a.photo}" class="details-photo">`:`<div class="details-photo bg-gray-100"></div>`}
-        <div>
-          <h3 class="text-xl font-semibold mb-1">${escapeHtml(a.name)}</h3>
-          <p><strong>Passport:</strong> ${escapeHtml(a.passport)}</p>
-          <p><strong>Mobile:</strong> ${escapeHtml(a.mobile||'')}</p>
-          <p><strong>Job Profile:</strong> ${escapeHtml(a.jobProfile||'')}</p>
-          <p><strong>DOB:</strong> ${escapeHtml(a.dob||'')} (${age?age+' yrs':''})</p>
-          <p><strong>Address:</strong> ${escapeHtml(a.address||'')}</p>
-          <p><strong>Status:</strong> <span class="status-badge ${getStatusClass(a.status)}">${escapeHtml(a.status)}</span></p>
-          <div class="progress-bar mt-2"><div class="progress-fill" style="width:${progress}%;"></div></div>
-        </div>
-      </div>
-      <div class="mt-2">
-        <p><strong>Advance:</strong> ₹${formatNumber(a.advance)}</p>
-        <p><strong>Final:</strong> ₹${formatNumber(a.final)}</p>
-        <p><strong>Total:</strong> ₹${formatNumber(total)}</p>
-      </div>`;
-    detailsModal.classList.remove('hidden');
-  };
+  window.editApplicant = function(idx){ const a=applicants[idx]; if(!a) return; editingIndex=idx; modalTitle.textContent='Edit Applicant'; document.getElementById('name').value=a.name; document.getElementById('passport').value=a.passport; document.getElementById('dob').value=a.dob; document.getElementById('address').value=a.address; document.getElementById('mobile').value=a.mobile; document.getElementById('jobProfile').value=a.jobProfile; document.getElementById('status').value=a.status; document.getElementById('advance').value=a.advance; document.getElementById('final').value=a.final; currentPhotoBase64=a.photo||''; photoPreview.innerHTML=a.photo?`<img src="${a.photo}" class="details-photo">`:''; modal.classList.remove('hidden'); };
+  window.deleteApplicant = function(idx){ if(!confirm('Delete this applicant?')) return; const rowIndex = applicants[idx].sheetRow || (idx+2); fetch(webAppUrl,{ method:"POST", body:JSON.stringify({action:"delete", rowIndex}) }).then(r=>r.json()).then(res=>{ if(res.result==="success"){ applicants.splice(idx,1); persist(); renderTable(); showToast('Deleted','#dc2626'); } else showToast(res.message||'Error','#b91c1c'); }).catch(err=>{ console.error(err); showToast('Error','#b91c1c'); }); };
+  window.viewApplicant = function(idx){ const a=applicants[idx]; if(!a) return; const age=calculateAge(a.dob); const progress = a.status==='Visa Received'?100:a.status==='Departure'?90:a.status==='Visa In Process'?60:a.status==='On Hold'?30:a.status==='Visa Rejected'?10:0; detailsContent.innerHTML=`<div class="flex gap-4 items-start">${a.photo?`<img src="${a.photo}" class="details-photo">`:`<div class="details-photo bg-gray-100"></div>`}<div><h3 class="text-xl font-semibold mb-1">${escapeHtml(a.name)}</h3><p><strong>Passport:</strong> ${escapeHtml(a.passport)}</p><p><strong>Mobile:</strong> ${escapeHtml(a.mobile||'')}</p><p><strong>Job Profile:</strong> ${escapeHtml(a.jobProfile||'')}</p><p><strong>DOB:</strong> ${escapeHtml(a.dob||'')} (${age?age+' yrs':''})</p><p><strong>Address:</strong> ${escapeHtml(a.address||'')}</p><p><strong>Status:</strong> <span class="status-badge ${getStatusClass(a.status)}">${escapeHtml(a.status)}</span></p><div class="progress-bar mt-2"><div class="progress-fill" style="width:${progress}%;"></div></div></div></div><div class="mt-2"><p><strong>Advance:</strong> ₹${formatNumber(a.advance)}</p><p><strong>Final:</strong> ₹${formatNumber(a.final)}</p><p><strong>Total:</strong> ₹${formatNumber(a.advance+a.final)}</p></div>`; detailsModal.classList.remove('hidden'); };
 
   closeDetails.addEventListener('click',()=>detailsModal.classList.add('hidden'));
   closeDetails2.addEventListener('click',()=>detailsModal.classList.add('hidden'));
 
-  function applyFilters(){
-    const q=(searchInput.value||'').toLowerCase().trim();
-    const f=filterSelect.value;
-    const filtered=applicants.filter(a=>{
-      const matchesQ=(a.name||'').toLowerCase().includes(q)||(a.passport||'').toLowerCase().includes(q);
-      const matchesF=!f||a.status===f;
-      return matchesQ&&matchesF;
-    });
-    renderTable(filtered);
-  }
-
+  // Filters & CSV export
+  function applyFilters(){ const q=(searchInput.value||'').toLowerCase().trim(); const f=filterSelect.value; const filtered=applicants.filter(a=>((a.name||'').toLowerCase().includes(q)||(a.passport||'').toLowerCase().includes(q))&&(!f||a.status===f)); renderTable(filtered); }
   searchInput.addEventListener('input',applyFilters);
   filterSelect.addEventListener('change',applyFilters);
 
   exportCsvBtn.addEventListener('click',()=>{
-    if(!applicants.length){showToast('No data to export','#b91c1c');return;}
-    const csv=Papa.unparse(applicants.map(a=>({name:a.name,passport:a.passport,mobile:a.mobile,jobProfile:a.jobProfile,dob:a.dob,age:calculateAge(a.dob),address:a.address,status:a.status,advance:a.advance,final:a.final})));
-    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-    const url=URL.createObjectURL(blob);
-    const aTag=document.createElement('a');
-    aTag.href=url; aTag.download='visatracker_applicants.csv'; document.body.appendChild(aTag); aTag.click(); aTag.remove(); URL.revokeObjectURL(url);
-    showToast('CSV exported','#0ea5a2');
+    if(!applicants.length){showToast('No data','#b91c1c'); return;}
+    const csv = Papa.unparse(applicants.map(a=>({name:a.name, passport:a.passport, mobile:a.mobile, jobProfile:a.jobProfile, dob:a.dob, age:calculateAge(a.dob), address:a.address, status:a.status, advance:a.advance, final:a.final})));
+    const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob);
+    const aTag=document.createElement('a'); aTag.href=url; aTag.download='visatracker_applicants.csv'; document.body.appendChild(aTag); aTag.click(); aTag.remove(); URL.revokeObjectURL(url); showToast('CSV exported','#0ea5a2');
   });
 
   renderTable();
