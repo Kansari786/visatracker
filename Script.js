@@ -196,21 +196,36 @@ document.addEventListener('DOMContentLoaded', () => {
       photo: currentPhotoBase64 || ''
     };
 
-    if (editingIndex >= 0) {
-      applicants[editingIndex] = record;
-      showToast('Applicant updated', '#0ea5a2');
-      editingIndex = -1;
-    } else {
-      applicants.push(record);
-      showToast('Applicant added', '#16a34a');
-    }
+   const webAppUrl = "https://script.google.com/macros/s/AKfycbxCXmS6MsQ_XmL6VKWo72lnCZrVfiC3f0np1br1caJ36efsefaHr-J4k8q1c21U5osB/exec"; // 
 
-    persist();
-    renderTable();
-    form.reset();
-    photoPreview.innerHTML = '';
-    currentPhotoBase64 = '';
-    modal.classList.add('hidden');
+if (editingIndex >= 0) {
+  // Optional: handle edit updates on Sheet if needed
+  showToast('Editing on Sheet not implemented yet', '#f59e0b');
+  editingIndex = -1;
+  modal.classList.add('hidden');
+} else {
+  fetch(webAppUrl, {
+    method: "POST",
+    body: JSON.stringify(record)
+  })
+  .then(res => res.json())
+  .then(result => {
+    if (result.result === "success") {
+      showToast('Applicant added to Google Sheet!', '#16a34a');
+      form.reset();
+      photoPreview.innerHTML = '';
+      currentPhotoBase64 = '';
+      modal.classList.add('hidden');
+    } else {
+      showToast('Error adding applicant', '#b91c1c');
+    }
+  })
+  .catch(err => {
+    console.error(err);
+    showToast('Error adding applicant', '#b91c1c');
+  });
+}
+
   });
 
   // Edit (exposed globally)
@@ -237,7 +252,6 @@ document.addEventListener('DOMContentLoaded', () => {
   window.deleteApplicant = function (index) {
     if (!confirm('Delete this applicant?')) return;
     applicants.splice(index, 1);
-    persist();
     renderTable();
     showToast('Applicant deleted', '#dc2626');
   };
