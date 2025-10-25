@@ -1,0 +1,328 @@
+// VisaTracker - script.js (updated with Mobile, Job Profile, and Age)
+document.addEventListener('DOMContentLoaded', () => {
+  // Elements
+  const addBtn = document.getElementById('add-applicant');
+  const modal = document.getElementById('modal');
+  const closeModalBtn = document.getElementById('close-modal');
+  const cancelBtn = document.getElementById('cancel-btn');
+  const form = document.getElementById('applicant-form');
+  const tableBody = document.getElementById('table-body');
+  const photoInput = document.getElementById('photo');
+  const photoPreview = document.getElementById('photo-preview');
+  const modalTitle = document.getElementById('modal-title');
+
+  const detailsModal = document.getElementById('details-modal');
+  const detailsContent = document.getElementById('details-content');
+  const closeDetails = document.getElementById('close-details');
+  const closeDetails2 = document.getElementById('close-details-2');
+
+  const searchInput = document.getElementById('search');
+  const filterSelect = document.getElementById('filter');
+  const exportCsvBtn = document.getElementById('export-csv');
+
+  // Data
+  let applicants = JSON.parse(localStorage.getItem('applicants')) || [];
+  let editingIndex = -1;
+  let currentPhotoBase64 = '';
+
+  // Helpers
+  function showToast(text, bg = '#16a34a') {
+    Toastify({
+      text,
+      duration: 3000,
+      gravity: 'top',
+      position: 'right',
+      style: { background: bg },
+    }).showToast();
+  }
+
+  function getStatusClass(status) {
+    if (status === 'Visa In Process') return 'status-in-process';
+    if (status === 'Visa Received') return 'status-received';
+    if (status === 'Departure') return 'status-departure';
+    if (status === 'Visa Rejected') return 'status-rejected';
+    if (status === 'On Hold') return 'status-on-hold';
+    if (status === 'Withdrawn Application') return 'status-withdrawn';
+    return 'status-on-hold';
+  }
+
+  function calculateAge(dob) {
+    if (!dob) return '';
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const m = today.getMonth() - birthDate.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
+    return isNaN(age) ? '' : age;
+  }
+
+  // Render table rows
+  function renderTable(filtered = applicants) {
+    tableBody.innerHTML = '';
+    if (!filtered.length) {
+      tableBody.innerHTML = `<tr><td colspan="9" class="px-4 py-6 text-center text-gray-500">No applicants found</td></tr>`;
+      return;
+    }
+
+    filtered.forEach((app, idx) => {
+      const tr = document.createElement('tr');
+      tr.className = 'hover:bg-gray-50';
+      const age = calculateAge(app.dob);
+      tr.innerHTML = `
+  <td class="px-4 py-3">
+    ${app.photo ? `<img src="${app.photo}" class="photo-thumb" alt="photo">` : `<div class="photo-thumb bg-gray-100"></div>`}
+  </td>
+  <td class="px-4 py-3">${escapeHtml(app.name)}</td>
+  <td class="px-4 py-3 font-mono">${escapeHtml(app.passport)}</td>
+  <td class="px-4 py-3">${escapeHtml(app.mobile || '')}</td>
+  <td class="px-4 py-3">${escapeHtml(app.jobProfile || '')}</td>
+  <td class="px-4 py-3">${age}</td>
+  <td class="px-4 py-3"><span class="status-badge ${getStatusClass(app.status)}">${escapeHtml(app.status)}</span></td>
+  <td class="px-4 py-3">₹${formatNumber(app.advance)}</td>
+  <td class="px-4 py-3">₹${formatNumber(app.final)}</td>
+  <td class="px-4 py-3 table-actions">
+    <button class="px-2 py-1 bg-blue-600 text-white rounded" onclick="viewApplicant(${idx})">View</button>
+    <button class="px-2 py-1 bg-yellow-500 text-white rounded" onclick="editApplicant(${idx})">Edit</button>
+    <button class="px-2 py-1 bg-red-600 text-white rounded" onclick="deleteApplicant(${idx})">Delete</button>
+  </td>
+`;
+
+      tableBody.appendChild(tr);
+    });
+  }
+
+  // Utility: format number safely
+  function formatNumber(v) {
+    if (v === undefined || v === null || isNaN(v)) return '0.00';
+    return Number(v).toFixed(2);
+  }
+
+  // Utility: simple escape
+  function escapeHtml(s) {
+    if (!s && s !== 0) return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  // Save to localStorage
+  function persist() {
+    localStorage.setItem('applicants', JSON.stringify(applicants));
+  }
+
+  // Open modal to add
+  addBtn.addEventListener('click', () => {
+    editingIndex = -1;
+    modalTitle.textContent = 'Add Applicant';
+    form.reset();
+    currentPhotoBase64 = '';
+    photoPreview.innerHTML = '';
+    modal.classList.remove('hidden');
+  });
+
+  // Close modal handlers
+  closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
+  cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
+
+  // Photo upload and preview
+  photoInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) {
+      currentPhotoBase64 = '';
+      photoPreview.innerHTML = '';
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      showToast('Please upload an image file', '#b91c1c');
+      photoInput.value = '';
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Image must be less than 2 MB', '#b91c1c');
+      photoInput.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      currentPhotoBase64 = reader.result;
+      photoPreview.innerHTML = `<img src="${currentPhotoBase64}" class="details-photo" alt="preview">`;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Passport input: allow only alphanumeric and max 8
+  const passportInput = document.getElementById('passport');
+  passportInput.addEventListener('input', (e) => {
+    let v = e.target.value.toUpperCase();
+    v = v.replace(/[^A-Z0-9]/g, '');
+    if (v.length > 8) v = v.slice(0, 8);
+    e.target.value = v;
+  });
+
+  // Mobile number validation
+  const mobileInput = document.getElementById('mobile');
+  mobileInput.addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+  });
+
+  // Submit handler (Add / Edit)
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById('name').value.trim();
+    const passport = document.getElementById('passport').value.trim();
+    const dob = document.getElementById('dob').value;
+    const address = document.getElementById('address').value.trim();
+    const mobile = document.getElementById('mobile').value.trim();
+    const jobProfile = document.getElementById('jobProfile').value.trim();
+    const status = document.getElementById('status').value;
+    const advance = parseFloat(document.getElementById('advance').value) || 0;
+    const finalAmt = parseFloat(document.getElementById('final').value) || 0;
+
+    if (!/^[A-Z0-9]{8}$/.test(passport)) {
+      showToast('Passport must be exactly 8 alphanumeric characters', '#b91c1c');
+      return;
+    }
+
+    if (!/^[0-9]{10}$/.test(mobile)) {
+      showToast('Enter a valid 10-digit mobile number', '#b91c1c');
+      return;
+    }
+
+    const record = {
+      name, passport, dob, address, mobile, jobProfile,
+      status, advance: Number(advance), final: Number(finalAmt),
+      photo: currentPhotoBase64 || ''
+    };
+
+    if (editingIndex >= 0) {
+      applicants[editingIndex] = record;
+      showToast('Applicant updated', '#0ea5a2');
+      editingIndex = -1;
+    } else {
+      applicants.push(record);
+      showToast('Applicant added', '#16a34a');
+    }
+
+    persist();
+    renderTable();
+    form.reset();
+    photoPreview.innerHTML = '';
+    currentPhotoBase64 = '';
+    modal.classList.add('hidden');
+  });
+
+  // Edit (exposed globally)
+  window.editApplicant = function (index) {
+    const a = applicants[index];
+    if (!a) return;
+    editingIndex = index;
+    modalTitle.textContent = 'Edit Applicant';
+    document.getElementById('name').value = a.name;
+    document.getElementById('passport').value = a.passport;
+    document.getElementById('dob').value = a.dob;
+    document.getElementById('address').value = a.address;
+    document.getElementById('mobile').value = a.mobile;
+    document.getElementById('jobProfile').value = a.jobProfile;
+    document.getElementById('status').value = a.status;
+    document.getElementById('advance').value = a.advance;
+    document.getElementById('final').value = a.final;
+    currentPhotoBase64 = a.photo || '';
+    photoPreview.innerHTML = a.photo ? `<img src="${a.photo}" class="details-photo">` : '';
+    modal.classList.remove('hidden');
+  };
+
+  // Delete (exposed globally)
+  window.deleteApplicant = function (index) {
+    if (!confirm('Delete this applicant?')) return;
+    applicants.splice(index, 1);
+    persist();
+    renderTable();
+    showToast('Applicant deleted', '#dc2626');
+  };
+
+  // View (exposed globally)
+  window.viewApplicant = function (index) {
+    const a = applicants[index];
+    if (!a) return;
+    const total = Number(a.advance || 0) + Number(a.final || 0);
+    const progress =
+      a.status === 'Visa Received' ? 100 :
+      a.status === 'Departure' ? 90 :
+      a.status === 'Visa In Process' ? 60 :
+      a.status === 'On Hold' ? 30 :
+      a.status === 'Visa Rejected' ? 10 : 0;
+
+    const age = calculateAge(a.dob);
+
+    detailsContent.innerHTML = `
+      <div class="flex gap-4 items-start">
+        ${a.photo ? `<img src="${a.photo}" class="details-photo" alt="photo">` : `<div class="details-photo bg-gray-100"></div>`}
+        <div>
+          <h3 class="text-xl font-semibold mb-1">${escapeHtml(a.name)}</h3>
+          <p class="text-sm"><strong>Passport:</strong> ${escapeHtml(a.passport)}</p>
+          <p class="text-sm"><strong>Mobile:</strong> ${escapeHtml(a.mobile || '')}</p>
+          <p class="text-sm"><strong>Job Profile:</strong> ${escapeHtml(a.jobProfile || '')}</p>
+          <p class="text-sm"><strong>DOB:</strong> ${escapeHtml(a.dob || '')} (${age ? age + ' years old' : ''})</p>
+          <p class="text-sm"><strong>Address:</strong> ${escapeHtml(a.address || '')}</p>
+          <p class="text-sm mt-2"><strong>Status:</strong> <span class="status-badge ${getStatusClass(a.status)}">${escapeHtml(a.status)}</span></p>
+          <div class="progress-bar mt-3"><div class="progress-fill" style="width: ${progress}%;"></div></div>
+        </div>
+      </div>
+      <div class="mt-4">
+        <p><strong>Advance:</strong> ₹${formatNumber(a.advance)}</p>
+        <p><strong>Final:</strong> ₹${formatNumber(a.final)}</p>
+        <p><strong>Total:</strong> ₹${formatNumber(total)}</p>
+      </div>
+    `;
+    detailsModal.classList.remove('hidden');
+  };
+
+  closeDetails.addEventListener('click', () => detailsModal.classList.add('hidden'));
+  closeDetails2.addEventListener('click', () => detailsModal.classList.add('hidden'));
+
+  // Search & filter
+  function applyFilters() {
+    const q = (searchInput.value || '').toLowerCase().trim();
+    const f = filterSelect.value;
+    const filtered = applicants.filter(a => {
+      const matchesQ = (a.name || '').toLowerCase().includes(q) || (a.passport || '').toLowerCase().includes(q);
+      const matchesF = !f || a.status === f;
+      return matchesQ && matchesF;
+    });
+    renderTable(filtered);
+  }
+
+  searchInput.addEventListener('input', applyFilters);
+  filterSelect.addEventListener('change', applyFilters);
+
+  // Export CSV
+  exportCsvBtn.addEventListener('click', () => {
+    if (!applicants.length) { showToast('No data to export', '#b91c1c'); return; }
+    const csv = Papa.unparse(applicants.map(a => ({
+      name: a.name,
+      passport: a.passport,
+      mobile: a.mobile,
+      jobProfile: a.jobProfile,
+      dob: a.dob,
+      age: calculateAge(a.dob),
+      address: a.address,
+      status: a.status,
+      advance: a.advance,
+      final: a.final
+    })));
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const aTag = document.createElement('a');
+    aTag.href = url;
+    aTag.download = 'visatracker_applicants.csv';
+    document.body.appendChild(aTag);
+    aTag.click();
+    aTag.remove();
+    URL.revokeObjectURL(url);
+    showToast('CSV exported', '#0ea5a2');
+  });
+
+  renderTable();
+}); // DOMContentLoaded end

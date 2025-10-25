@@ -1,0 +1,116 @@
+/* Basic layout + modal styles and small theme adjustments */
+
+/* Inputs / buttons */
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #e6e6e6;
+  background: #fff;
+  transition: box-shadow .12s, border-color .12s;
+}
+.input:focus { outline: none; box-shadow: 0 6px 18px rgba(34,197,94,0.08); border-color: #22c55e; }
+
+.btn-green {
+  background: #16a34a;
+  color: white;
+  padding: 8px 14px;
+  border-radius: 8px;
+}
+.btn-green:hover { background: #15803d; }
+
+.btn-gray {
+  background: #e5e7eb;
+  color: #111827;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+.btn-gray:hover { background: #d1d5db; }
+
+/* Modal */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(10, 10, 10, .45);
+  z-index: 60;
+}
+.modal.hidden { display: none; }
+.modal-box {
+  width: 95%;
+  max-width: 720px;
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(2,6,23,0.12);
+  
+  max-height: 90vh;          /* limit height to 90% of screen */
+  overflow-y: auto;          /* enable vertical scrolling inside modal */
+  scrollbar-width: thin;     /* (optional) for neat scroll on Firefox */
+  scrollbar-color: #a3a3a3 transparent;
+  
+}
+
+
+/* Table photo */
+.photo-thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid #e5e7eb;
+}
+
+/* Details photo */
+.details-photo {
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 2px solid #e5e7eb;
+}
+
+/* status badges */
+.status-badge {
+  display: inline-block;
+  color: #fff;
+  font-size: .8rem;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.status-in-process { background: #f59e0b; }   /* yellow */
+.status-received   { background: #16a34a; }   /* green */
+.status-departure  { background: #3b82f6; }   /* blue */
+.status-rejected   { background: #ef4444; }   /* red */
+.status-on-hold    { background: #6b7280; }   /* gray */
+.status-withdrawn  { background: #7c3aed; }   /* purple */
+
+/* small helpers */
+.table-actions button { margin-right: 6px; }
+
+/* responsiveness */
+@media (max-width: 640px) {
+  .modal-box { padding: 16px; }
+  .photo-thumb { width: 40px; height: 40px; }
+  .details-photo { width: 110px; height: 110px; }
+}
+
+/* Make table header text uppercase and larger */
+th {
+  text-transform: uppercase;     /* All headers in caps */
+  font-size: 14px;               /* Slightly bigger text */
+  font-weight: 700;              /* Bold headers */
+  padding: 10px 12px;            /* Add space inside header cells */
+  background-color: #f9fafb;     /* Light background for clarity */
+  border-bottom: 2px solid #e5e7eb;
+}
+
+/* Optional: Increase row text size slightly for readability */
+td {
+  font-size: 15px;
+  padding: 10px 12px;
+  vertical-align: middle;
+}
