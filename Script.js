@@ -25,8 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let editingIndex = -1;
   let currentPhotoBase64 = '';
 
-  // ✅ Google Apps Script Web App URL (replace with your own if needed)
-  const webAppUrl = "https://script.google.com/macros/s/AKfycbzzs8Qa6Cy05cOjkLJc1kJBu5n8YuRJAUyFui2dsqoLRN6ybr7sCgTY6cUNCaahnxCf/exec";
+  // ✅ Use your correct Google Apps Script URL here
+  const webAppUrl = "https://script.google.com/macros/s/AKfycbyf0ABqLxGDfsUyv_aOHPasCTcmCiYF-iTUL52KuW80yIPX-Klh66UHm5x6ldY_Z1iz/exec";
 
   // Helpers
   function showToast(text, bg = '#16a34a') {
@@ -176,7 +176,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Edit/Delete/View
   window.editApplicant = function(idx){ 
     const a=applicants[idx]; if(!a) return; 
     editingIndex=idx; modalTitle.textContent='Edit Applicant'; 
