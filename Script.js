@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentPhotoBase64 = '';
 
   // ✅ Use your correct Google Apps Script URL here
-  const webAppUrl = "https://script.google.com/macros/s/AKfycbyf0ABqLxGDfsUyv_aOHPasCTcmCiYF-iTUL52KuW80yIPX-Klh66UHm5x6ldY_Z1iz/exec";
+  const webAppUrl = "https://script.google.com/macros/s/AKfycbx8FaF2lEEA6-gieWDjmiAzrwJRjScaBmyr-mPk1XKMj_aqQ7MVS6ENfravZmq7ew_i/exec";
 
   // Helpers
   function showToast(text, bg = '#16a34a') {
