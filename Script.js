@@ -25,8 +25,8 @@ document.addEventListener('DOMContentLoaded', () => {
   let editingIndex = -1;
   let currentPhotoBase64 = '';
 
-  // Google Apps Script Web App URL
-  const webAppUrl = "https://script.google.com/macros/s/AKfycbwBJTi4wNu06MIY42w1aQfHjWQfQgbqj3kvftBYHYZW8a6aC9j2tXM3IOr_nOk8zmfT/exec";
+  // ✅ Google Apps Script Web App URL (replace with your own if needed)
+  const webAppUrl = "https://script.google.com/macros/s/AKfycbzzs8Qa6Cy05cOjkLJc1kJBu5n8YuRJAUyFui2dsqoLRN6ybr7sCgTY6cUNCaahnxCf/exec";
 
   // Helpers
   function showToast(text, bg = '#16a34a') {
@@ -88,7 +88,15 @@ document.addEventListener('DOMContentLoaded', () => {
   function persist() { localStorage.setItem('applicants', JSON.stringify(applicants)); }
 
   // Add/Edit Modal
-  addBtn.addEventListener('click', () => { editingIndex = -1; modalTitle.textContent = 'Add Applicant'; form.reset(); currentPhotoBase64=''; photoPreview.innerHTML=''; modal.classList.remove('hidden'); });
+  addBtn.addEventListener('click', () => {
+    editingIndex = -1;
+    modalTitle.textContent = 'Add Applicant';
+    form.reset();
+    currentPhotoBase64 = '';
+    photoPreview.innerHTML = '';
+    modal.classList.remove('hidden');
+  });
+
   closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
   cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
 
@@ -98,14 +106,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!file) { currentPhotoBase64=''; photoPreview.innerHTML=''; return; }
     if(!file.type.startsWith('image/')) { showToast('Upload image file','#b91c1c'); photoInput.value=''; return; }
     if(file.size>2*1024*1024) { showToast('Image <2MB','#b91c1c'); photoInput.value=''; return; }
-    const reader = new FileReader(); reader.onload=()=>{ currentPhotoBase64=reader.result; photoPreview.innerHTML=`<img src="${currentPhotoBase64}" class="details-photo">`; }; reader.readAsDataURL(file);
+    const reader = new FileReader(); 
+    reader.onload=()=>{ 
+      currentPhotoBase64=reader.result; 
+      photoPreview.innerHTML=`<img src="${currentPhotoBase64}" class="details-photo">`; 
+    }; 
+    reader.readAsDataURL(file);
   });
 
   // Passport & Mobile input validation
-  document.getElementById('passport').addEventListener('input', e=>{ let v=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,''); if(v.length>8)v=v.slice(0,8); e.target.value=v; });
-  document.getElementById('mobile').addEventListener('input', e=>{ e.target.value=e.target.value.replace(/[^0-9]/g,'').slice(0,10); });
+  document.getElementById('passport').addEventListener('input', e=>{
+    let v=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(v.length>8)v=v.slice(0,8);
+    e.target.value=v;
+  });
+  document.getElementById('mobile').addEventListener('input', e=>{
+    e.target.value=e.target.value.replace(/[^0-9]/g,'').slice(0,10);
+  });
 
-  // Submit
+  // ✅ Submit (Add/Edit)
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const name = document.getElementById('name').value.trim();
@@ -118,53 +137,129 @@ document.addEventListener('DOMContentLoaded', () => {
     const advance = parseFloat(document.getElementById('advance').value) || 0;
     const finalAmt = parseFloat(document.getElementById('final').value) || 0;
 
-    if(!/^[A-Z0-9]{8}$/.test(passport)){ showToast('Passport 8 chars','#b91c1c'); return; }
-    if(!/^[0-9]{10}$/.test(mobile)){ showToast('Mobile 10 digits','#b91c1c'); return; }
+    if(!/^[A-Z0-9]{8}$/.test(passport)){ showToast('Passport must be 8 characters','#b91c1c'); return; }
+    if(!/^[0-9]{10}$/.test(mobile)){ showToast('Mobile must be 10 digits','#b91c1c'); return; }
 
     const record={ name, passport, dob, address, mobile, jobProfile, status, advance, final: finalAmt, photo: currentPhotoBase64||'' };
 
     if(editingIndex>=0){
       // Edit
-      const rowIndex = applicants[editingIndex].sheetRow || (editingIndex+2); // Fallback row index
+      const rowIndex = applicants[editingIndex].sheetRow || (editingIndex+2);
       fetch(webAppUrl,{
         method:"POST",
         body: JSON.stringify({ action:"edit", rowIndex, ...record })
       }).then(r=>r.json()).then(res=>{
         if(res.result==="success"){
           applicants[editingIndex]={...record,sheetRow: rowIndex};
-          persist(); renderTable(); showToast('Applicant updated','#0ea5a2'); modal.classList.add('hidden'); editingIndex=-1;
+          persist(); renderTable(); showToast('Applicant updated','#0ea5a2');
+          modal.classList.add('hidden'); editingIndex=-1;
         } else showToast(res.message||'Error','#b91c1c');
       }).catch(err=>{ console.error(err); showToast('Error','#b91c1c'); });
     } else {
-      // Add
-      fetch(webAppUrl,{ method:"POST", body: JSON.stringify(record) })
-      .then(r=>r.json()).then(res=>{
+      // ✅ Add (fixed)
+      fetch(webAppUrl,{
+        method:"POST",
+        body: JSON.stringify({ action:"add", ...record })
+      })
+      .then(r=>r.json())
+      .then(res=>{
         if(res.result==="success"){
-          record.sheetRow = applicants.length+2; // track row in Sheet
-          applicants.push(record); persist(); renderTable(); form.reset(); photoPreview.innerHTML=''; currentPhotoBase64=''; modal.classList.add('hidden'); showToast('Applicant added','#16a34a');
+          record.sheetRow = applicants.length+2;
+          applicants.push(record);
+          persist(); renderTable();
+          form.reset(); photoPreview.innerHTML=''; currentPhotoBase64='';
+          modal.classList.add('hidden');
+          showToast('Applicant added successfully','#16a34a');
         } else showToast(res.message||'Error','#b91c1c');
-      }).catch(err=>{ console.error(err); showToast('Error','#b91c1c'); });
+      })
+      .catch(err=>{ console.error(err); showToast('Error connecting to Google Sheet','#b91c1c'); });
     }
   });
 
   // Edit/Delete/View
-  window.editApplicant = function(idx){ const a=applicants[idx]; if(!a) return; editingIndex=idx; modalTitle.textContent='Edit Applicant'; document.getElementById('name').value=a.name; document.getElementById('passport').value=a.passport; document.getElementById('dob').value=a.dob; document.getElementById('address').value=a.address; document.getElementById('mobile').value=a.mobile; document.getElementById('jobProfile').value=a.jobProfile; document.getElementById('status').value=a.status; document.getElementById('advance').value=a.advance; document.getElementById('final').value=a.final; currentPhotoBase64=a.photo||''; photoPreview.innerHTML=a.photo?`<img src="${a.photo}" class="details-photo">`:''; modal.classList.remove('hidden'); };
-  window.deleteApplicant = function(idx){ if(!confirm('Delete this applicant?')) return; const rowIndex = applicants[idx].sheetRow || (idx+2); fetch(webAppUrl,{ method:"POST", body:JSON.stringify({action:"delete", rowIndex}) }).then(r=>r.json()).then(res=>{ if(res.result==="success"){ applicants.splice(idx,1); persist(); renderTable(); showToast('Deleted','#dc2626'); } else showToast(res.message||'Error','#b91c1c'); }).catch(err=>{ console.error(err); showToast('Error','#b91c1c'); }); };
-  window.viewApplicant = function(idx){ const a=applicants[idx]; if(!a) return; const age=calculateAge(a.dob); const progress = a.status==='Visa Received'?100:a.status==='Departure'?90:a.status==='Visa In Process'?60:a.status==='On Hold'?30:a.status==='Visa Rejected'?10:0; detailsContent.innerHTML=`<div class="flex gap-4 items-start">${a.photo?`<img src="${a.photo}" class="details-photo">`:`<div class="details-photo bg-gray-100"></div>`}<div><h3 class="text-xl font-semibold mb-1">${escapeHtml(a.name)}</h3><p><strong>Passport:</strong> ${escapeHtml(a.passport)}</p><p><strong>Mobile:</strong> ${escapeHtml(a.mobile||'')}</p><p><strong>Job Profile:</strong> ${escapeHtml(a.jobProfile||'')}</p><p><strong>DOB:</strong> ${escapeHtml(a.dob||'')} (${age?age+' yrs':''})</p><p><strong>Address:</strong> ${escapeHtml(a.address||'')}</p><p><strong>Status:</strong> <span class="status-badge ${getStatusClass(a.status)}">${escapeHtml(a.status)}</span></p><div class="progress-bar mt-2"><div class="progress-fill" style="width:${progress}%;"></div></div></div></div><div class="mt-2"><p><strong>Advance:</strong> ₹${formatNumber(a.advance)}</p><p><strong>Final:</strong> ₹${formatNumber(a.final)}</p><p><strong>Total:</strong> ₹${formatNumber(a.advance+a.final)}</p></div>`; detailsModal.classList.remove('hidden'); };
+  window.editApplicant = function(idx){ 
+    const a=applicants[idx]; if(!a) return; 
+    editingIndex=idx; modalTitle.textContent='Edit Applicant'; 
+    document.getElementById('name').value=a.name; 
+    document.getElementById('passport').value=a.passport; 
+    document.getElementById('dob').value=a.dob; 
+    document.getElementById('address').value=a.address; 
+    document.getElementById('mobile').value=a.mobile; 
+    document.getElementById('jobProfile').value=a.jobProfile; 
+    document.getElementById('status').value=a.status; 
+    document.getElementById('advance').value=a.advance; 
+    document.getElementById('final').value=a.final; 
+    currentPhotoBase64=a.photo||''; 
+    photoPreview.innerHTML=a.photo?`<img src="${a.photo}" class="details-photo">`:''; 
+    modal.classList.remove('hidden'); 
+  };
+
+  window.deleteApplicant = function(idx){ 
+    if(!confirm('Delete this applicant?')) return; 
+    const rowIndex = applicants[idx].sheetRow || (idx+2); 
+    fetch(webAppUrl,{ 
+      method:"POST", 
+      body:JSON.stringify({action:"delete", rowIndex}) 
+    })
+    .then(r=>r.json())
+    .then(res=>{ 
+      if(res.result==="success"){ 
+        applicants.splice(idx,1); persist(); renderTable(); showToast('Deleted','#dc2626'); 
+      } else showToast(res.message||'Error','#b91c1c'); 
+    })
+    .catch(err=>{ console.error(err); showToast('Error','#b91c1c'); }); 
+  };
+
+  window.viewApplicant = function(idx){ 
+    const a=applicants[idx]; if(!a) return; 
+    const age=calculateAge(a.dob); 
+    const progress = a.status==='Visa Received'?100:
+                     a.status==='Departure'?90:
+                     a.status==='Visa In Process'?60:
+                     a.status==='On Hold'?30:
+                     a.status==='Visa Rejected'?10:0; 
+    detailsContent.innerHTML=`<div class="flex gap-4 items-start">
+      ${a.photo?`<img src="${a.photo}" class="details-photo">`:`<div class="details-photo bg-gray-100"></div>`}
+      <div><h3 class="text-xl font-semibold mb-1">${escapeHtml(a.name)}</h3>
+      <p><strong>Passport:</strong> ${escapeHtml(a.passport)}</p>
+      <p><strong>Mobile:</strong> ${escapeHtml(a.mobile||'')}</p>
+      <p><strong>Job Profile:</strong> ${escapeHtml(a.jobProfile||'')}</p>
+      <p><strong>DOB:</strong> ${escapeHtml(a.dob||'')} (${age?age+' yrs':''})</p>
+      <p><strong>Address:</strong> ${escapeHtml(a.address||'')}</p>
+      <p><strong>Status:</strong> <span class="status-badge ${getStatusClass(a.status)}">${escapeHtml(a.status)}</span></p>
+      <div class="progress-bar mt-2"><div class="progress-fill" style="width:${progress}%;"></div></div></div></div>
+      <div class="mt-2"><p><strong>Advance:</strong> ₹${formatNumber(a.advance)}</p>
+      <p><strong>Final:</strong> ₹${formatNumber(a.final)}</p>
+      <p><strong>Total:</strong> ₹${formatNumber(a.advance+a.final)}</p></div>`;
+    detailsModal.classList.remove('hidden'); 
+  };
 
   closeDetails.addEventListener('click',()=>detailsModal.classList.add('hidden'));
   closeDetails2.addEventListener('click',()=>detailsModal.classList.add('hidden'));
 
   // Filters & CSV export
-  function applyFilters(){ const q=(searchInput.value||'').toLowerCase().trim(); const f=filterSelect.value; const filtered=applicants.filter(a=>((a.name||'').toLowerCase().includes(q)||(a.passport||'').toLowerCase().includes(q))&&(!f||a.status===f)); renderTable(filtered); }
+  function applyFilters(){ 
+    const q=(searchInput.value||'').toLowerCase().trim(); 
+    const f=filterSelect.value; 
+    const filtered=applicants.filter(a=>((a.name||'').toLowerCase().includes(q)||(a.passport||'').toLowerCase().includes(q))&&(!f||a.status===f)); 
+    renderTable(filtered); 
+  }
   searchInput.addEventListener('input',applyFilters);
   filterSelect.addEventListener('change',applyFilters);
 
   exportCsvBtn.addEventListener('click',()=>{
     if(!applicants.length){showToast('No data','#b91c1c'); return;}
-    const csv = Papa.unparse(applicants.map(a=>({name:a.name, passport:a.passport, mobile:a.mobile, jobProfile:a.jobProfile, dob:a.dob, age:calculateAge(a.dob), address:a.address, status:a.status, advance:a.advance, final:a.final})));
-    const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob);
-    const aTag=document.createElement('a'); aTag.href=url; aTag.download='visatracker_applicants.csv'; document.body.appendChild(aTag); aTag.click(); aTag.remove(); URL.revokeObjectURL(url); showToast('CSV exported','#0ea5a2');
+    const csv = Papa.unparse(applicants.map(a=>({
+      name:a.name, passport:a.passport, mobile:a.mobile, jobProfile:a.jobProfile, 
+      dob:a.dob, age:calculateAge(a.dob), address:a.address, 
+      status:a.status, advance:a.advance, final:a.final
+    })));
+    const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'}); 
+    const url=URL.createObjectURL(blob);
+    const aTag=document.createElement('a'); 
+    aTag.href=url; aTag.download='visatracker_applicants.csv'; 
+    document.body.appendChild(aTag); aTag.click(); aTag.remove(); 
+    URL.revokeObjectURL(url); showToast('CSV exported','#0ea5a2');
   });
 
   renderTable();
