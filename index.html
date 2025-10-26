@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>AS Overseas — VisaTracker</title>
+  <title>AS Overseas – VisaTracker</title>
 
   <!-- Tailwind (for quick modern layout) -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -36,23 +36,58 @@
   <!-- Main -->
   <main class="w-full px-6 py-6">
     <section class="bg-white p-4 rounded-lg shadow-sm mb-6">
-      <div class="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-        <div class="flex gap-3 w-full sm:w-auto">
-          <input id="search" type="text" placeholder="Search by name or passport"
-                 class="px-3 py-2 border rounded-md w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-green-400" />
-          <select id="filter" class="px-3 py-2 border rounded-md focus:outline-none">
-            <option value="">All Statuses</option>
-            <option value="Visa In Process">Visa In Process</option>
-            <option value="Visa Received">Visa Received</option>
-            <option value="Departure">Departure</option>
-            <option value="Visa Rejected">Visa Rejected</option>
-            <option value="On Hold">On Hold</option>
-            <option value="Withdrawn Application">Withdrawn Application</option>
+      <div class="flex flex-col gap-3">
+        <!-- Month/Year Filter Row -->
+        <div class="flex gap-3 items-center">
+          <label class="text-sm font-semibold text-gray-700">Filter by Month:</label>
+          <select id="month-filter" class="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-400">
+            <option value="all">All Data (Entire Year)</option>
+            <option value="1-2025">January 2025</option>
+            <option value="2-2025">February 2025</option>
+            <option value="3-2025">March 2025</option>
+            <option value="4-2025">April 2025</option>
+            <option value="5-2025">May 2025</option>
+            <option value="6-2025">June 2025</option>
+            <option value="7-2025">July 2025</option>
+            <option value="8-2025">August 2025</option>
+            <option value="9-2025">September 2025</option>
+            <option value="10-2025" selected>October 2025</option>
+            <option value="11-2025">November 2025</option>
+            <option value="12-2025">December 2025</option>
+            <option value="1-2024">January 2024</option>
+            <option value="2-2024">February 2024</option>
+            <option value="3-2024">March 2024</option>
+            <option value="4-2024">April 2024</option>
+            <option value="5-2024">May 2024</option>
+            <option value="6-2024">June 2024</option>
+            <option value="7-2024">July 2024</option>
+            <option value="8-2024">August 2024</option>
+            <option value="9-2024">September 2024</option>
+            <option value="10-2024">October 2024</option>
+            <option value="11-2024">November 2024</option>
+            <option value="12-2024">December 2024</option>
           </select>
         </div>
-        <div class="flex gap-3">
-          <button id="export-csv" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Export CSV</button>
-          <button id="add-applicant" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">+ Add Applicant</button>
+        
+        <!-- Search and Status Filter Row -->
+        <div class="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+          <div class="flex gap-3 w-full sm:w-auto">
+            <input id="search" type="text" placeholder="Search by name or passport"
+                   class="px-3 py-2 border rounded-md w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-green-400" />
+            <select id="filter" class="px-3 py-2 border rounded-md focus:outline-none">
+              <option value="">All Statuses</option>
+              <option value="Visa In Process">Visa In Process</option>
+              <option value="Visa Received">Visa Received</option>
+              <option value="Departure">Departure</option>
+              <option value="Visa Rejected">Visa Rejected</option>
+              <option value="On Hold">On Hold</option>
+              <option value="Withdrawn Application">Withdrawn Application</option>
+            </select>
+          </div>
+          <div class="flex gap-3">
+            <button id="export-csv" class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700">Export CSV</button>
+            <button id="add-applicant" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">+ Add Applicant</button>
+          </div>
         </div>
       </div>
     </section>
@@ -61,19 +96,19 @@
     <section class="bg-white rounded-lg shadow overflow-x-auto">
       <table class="min-w-full">
         <thead class="bg-gray-100 text-sm text-gray-700">
-  <tr>
-    <th class="px-4 py-3 text-left">Photo</th>
-    <th class="px-4 py-3 text-left">Name</th>
-    <th class="px-4 py-3 text-left">Passport</th>
-    <th class="px-4 py-3 text-left">Mobile</th>
-    <th class="px-4 py-3 text-left">Job Profile</th>
-    <th class="px-4 py-3 text-left">Age</th>
-    <th class="px-4 py-3 text-left">Status</th>
-    <th class="px-4 py-3 text-left">Advance</th>
-    <th class="px-4 py-3 text-left">Final</th>
-    <th class="px-4 py-3 text-left">Actions</th>
-  </tr>
-</thead>
+          <tr>
+            <th class="px-4 py-3 text-left">Photo</th>
+            <th class="px-4 py-3 text-left">Name</th>
+            <th class="px-4 py-3 text-left">Passport</th>
+            <th class="px-4 py-3 text-left">Mobile</th>
+            <th class="px-4 py-3 text-left">Job Profile</th>
+            <th class="px-4 py-3 text-left">Age</th>
+            <th class="px-4 py-3 text-left">Status</th>
+            <th class="px-4 py-3 text-left">Advance</th>
+            <th class="px-4 py-3 text-left">Final</th>
+            <th class="px-4 py-3 text-left">Actions</th>
+          </tr>
+        </thead>
         <tbody id="table-body" class="divide-y divide-gray-100 bg-white"></tbody>
       </table>
     </section>
@@ -90,36 +125,34 @@
       <form id="applicant-form" class="space-y-3">
         <div>
           <label class="block text-sm">Full Name</label>
-          <input id="name" type="text" required class="input"
-           placeholder="Full name"		  />
+          <input id="name" type="text" required class="input" placeholder="Full name" />
         </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-  <div>
-    <label class="block text-sm">Passport Number (8 alphanumeric)</label>
-    <input id="passport" type="text" maxlength="8" required class="input" />
-  </div>
+          <div>
+            <label class="block text-sm">Passport Number (8 alphanumeric)</label>
+            <input id="passport" type="text" maxlength="8" required class="input" />
+          </div>
 
-  <div>
-    <label class="block text-sm">Mobile Number</label>
-    <input
-      id="mobile"
-      type="tel"
-      maxlength="10"
-      pattern="[0-9]{10}"
-      placeholder="Enter 10-digit number"
-      class="input"
-      oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0,10)"
-      required
-    />
-  </div>
+          <div>
+            <label class="block text-sm">Mobile Number</label>
+            <input
+              id="mobile"
+              type="tel"
+              maxlength="10"
+              pattern="[0-9]{10}"
+              placeholder="Enter 10-digit number"
+              class="input"
+              oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0,10)"
+              required
+            />
+          </div>
 
-  <div>
-    <label class="block text-sm">Job Profile</label>
-    <input id="jobProfile" type="text" placeholder="e.g., Welder, Electrician" class="input" required />
-  </div>
-</div>
-
+          <div>
+            <label class="block text-sm">Job Profile</label>
+            <input id="jobProfile" type="text" placeholder="e.g., Welder, Electrician" class="input" required />
+          </div>
+        </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
@@ -167,26 +200,3 @@
         </div>
       </form>
     </div>
-  </div>
-
-  <!-- Details Modal -->
-  <div id="details-modal" class="modal hidden">
-    <div class="modal-box">
-      <div class="flex justify-between items-center mb-3">
-        <h3 class="text-lg font-semibold">Applicant Details</h3>
-        <button id="close-details" class="text-gray-500 text-2xl">&times;</button>
-      </div>
-      <div id="details-content"></div>
-      <div class="flex justify-end mt-4">
-        <button id="close-details-2" class="btn-gray">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Toastify JS -->
-  <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-
-  <!-- Main script -->
-  <script src="script.js"></script>
-</body>
-</html>
