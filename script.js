@@ -1,5 +1,5 @@
 // VisaTracker - script.js (FINAL FIXED - All Issues Resolved)
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwppefXt4k5A7KPTHcSOSp6TOB3O-OqcQK8MJ1sajs2VrqUeM5MhPrb2o6jKznGpIpA/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz92icWB9-RcdvJQVlosbnlbwVZYgA5wwdjo7c7Psbzi-qUcID6QicUXwMTwjGFOIKB/exec';
 
 document.addEventListener('DOMContentLoaded', () => {
   const addBtn = document.getElementById('add-applicant');
