@@ -1,5 +1,5 @@
 // VisaTracker - script.js (WITH DEBUGGING)
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxg9dTJ0C8XAQI7XrN5QQL7qoUdP27YkvmTxA3u204o6xtfoacuwmgcFglI34M_nOcC/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwppefXt4k5A7KPTHcSOSp6TOB3O-OqcQK8MJ1sajs2VrqUeM5MhPrb2o6jKznGpIpA/exec';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Elements
