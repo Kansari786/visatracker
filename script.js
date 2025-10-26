@@ -1,6 +1,5 @@
-// VisaTracker - script.js (FIXED VERSION)
-// Replace YOUR_SCRIPT_URL with your actual Google Apps Script Web App URL
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzXAqyxLqbwP-8gNzcjwj2BoLw4ezoVpjfJTAvpahU-tedVHknn0k0Sc9R5ydPRxD5F/exec'; // 
+// VisaTracker - script.js (WITH DEBUGGING)
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxg9dTJ0C8XAQI7XrN5QQL7qoUdP27YkvmTxA3u204o6xtfoacuwmgcFglI34M_nOcC/exec';
 
 document.addEventListener('DOMContentLoaded', () => {
   // Elements
@@ -27,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Data
   let applicants = [];
   let editingIndex = -1;
-  let editingRowIndex = -1; // Track Google Sheets row number
+  let editingRowIndex = -1;
   let currentPhotoBase64 = '';
 
   // Helpers
@@ -66,7 +65,6 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       showToast('Loading data...', '#0ea5a2');
       
-      // Get selected month/year filter
       const monthFilter = monthFilterSelect.value;
       let url = SCRIPT_URL;
       
@@ -75,13 +73,15 @@ document.addEventListener('DOMContentLoaded', () => {
         url += `?month=${month}&year=${year}`;
       }
       
+      console.log('Loading from URL:', url);
       const response = await fetch(url);
       const data = await response.json();
       
+      console.log('Received data:', data);
+      
       if (data.result === 'success') {
-        // Map sheet rows to applicant objects
         applicants = data.applicants.map((row, idx) => ({
-          rowIndex: idx + 2, // Row 1 is header, data starts at row 2
+          rowIndex: idx + 2,
           timestamp: row[0],
           name: row[1] || '',
           passport: row[2] || '',
@@ -101,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (error) {
       console.error('Load error:', error);
-      showToast('Failed to load data', '#b91c1c');
+      showToast('Failed to load data: ' + error.message, '#b91c1c');
     }
   }
 
@@ -139,13 +139,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Utility: format number safely
   function formatNumber(v) {
     if (v === undefined || v === null || isNaN(v)) return '0.00';
     return Number(v).toFixed(2);
   }
 
-  // Utility: simple escape
   function escapeHtml(s) {
     if (!s && s !== 0) return '';
     return String(s)
@@ -154,7 +152,6 @@ document.addEventListener('DOMContentLoaded', () => {
       .replace(/>/g, '&gt;');
   }
 
-  // Open modal to add
   addBtn.addEventListener('click', () => {
     editingIndex = -1;
     editingRowIndex = -1;
@@ -165,11 +162,9 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.classList.remove('hidden');
   });
 
-  // Close modal handlers
   closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
   cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
 
-  // Photo upload and preview
   photoInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) {
@@ -195,7 +190,6 @@ document.addEventListener('DOMContentLoaded', () => {
     reader.readAsDataURL(file);
   });
 
-  // Passport input: allow only alphanumeric and max 8
   const passportInput = document.getElementById('passport');
   passportInput.addEventListener('input', (e) => {
     let v = e.target.value.toUpperCase();
@@ -204,13 +198,12 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.value = v;
   });
 
-  // Mobile number validation
   const mobileInput = document.getElementById('mobile');
   mobileInput.addEventListener('input', (e) => {
     e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
   });
 
-  // Submit handler (Add / Edit)
+  // Submit handler with DETAILED LOGGING
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -244,39 +237,66 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('Saving...', '#0ea5a2');
       
       if (editingIndex >= 0) {
-        // EDIT: Update existing row
+        // EDIT mode
         record.action = 'edit';
         record.rowIndex = editingRowIndex;
         
-        const response = await fetch(SCRIPT_URL, {
-          method: 'POST',
-          body: JSON.stringify(record)
+        console.log('EDITING - Sending data:', {
+          action: record.action,
+          rowIndex: record.rowIndex,
+          name: record.name
         });
         
+        const response = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(record),
+          redirect: 'follow'
+        });
+        
+        console.log('Response status:', response.status);
         const result = await response.json();
+        console.log('Edit result:', result);
         
         if (result.result === 'success') {
           showToast('Applicant updated successfully', '#0ea5a2');
           editingIndex = -1;
           editingRowIndex = -1;
         } else {
+          console.error('Edit failed:', result.message);
           showToast('Error updating: ' + result.message, '#b91c1c');
+          return;
         }
       } else {
-        // ADD: Create new row
+        // ADD mode
         record.action = 'add';
+        
+        console.log('ADDING - Sending data:', {
+          action: record.action,
+          name: record.name
+        });
         
         const response = await fetch(SCRIPT_URL, {
           method: 'POST',
-          body: JSON.stringify(record)
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(record),
+          redirect: 'follow'
         });
         
+        console.log('Response status:', response.status);
         const result = await response.json();
+        console.log('Add result:', result);
         
         if (result.result === 'success') {
           showToast('Applicant added successfully', '#16a34a');
         } else {
+          console.error('Add failed:', result.message);
           showToast('Error adding: ' + result.message, '#b91c1c');
+          return;
         }
       }
 
@@ -288,16 +308,23 @@ document.addEventListener('DOMContentLoaded', () => {
       
     } catch (error) {
       console.error('Save error:', error);
-      showToast('Failed to save applicant', '#b91c1c');
+      showToast('Failed to save: ' + error.message, '#b91c1c');
     }
   });
 
-  // Edit (exposed globally)
   window.editApplicant = function (index) {
     const a = applicants[index];
     if (!a) return;
+    
     editingIndex = index;
-    editingRowIndex = a.rowIndex; // Store the actual Google Sheets row number
+    editingRowIndex = a.rowIndex;
+    
+    console.log('Opening edit for applicant:', {
+      index: index,
+      rowIndex: editingRowIndex,
+      name: a.name
+    });
+    
     modalTitle.textContent = 'Edit Applicant';
     document.getElementById('name').value = a.name;
     document.getElementById('passport').value = a.passport;
@@ -313,7 +340,6 @@ document.addEventListener('DOMContentLoaded', () => {
     modal.classList.remove('hidden');
   };
 
-  // Delete (exposed globally)
   window.deleteApplicant = async function (index) {
     if (!confirm('Delete this applicant?')) return;
     
@@ -322,15 +348,22 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       showToast('Deleting...', '#0ea5a2');
       
+      console.log('Deleting row:', app.rowIndex);
+      
       const response = await fetch(SCRIPT_URL, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
           action: 'delete',
           rowIndex: app.rowIndex
-        })
+        }),
+        redirect: 'follow'
       });
       
       const result = await response.json();
+      console.log('Delete result:', result);
       
       if (result.result === 'success') {
         showToast('Applicant deleted successfully', '#dc2626');
@@ -340,11 +373,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (error) {
       console.error('Delete error:', error);
-      showToast('Failed to delete applicant', '#b91c1c');
+      showToast('Failed to delete: ' + error.message, '#b91c1c');
     }
   };
 
-  // View (exposed globally) - FIXED: Now shows all payment details
   window.viewApplicant = function (index) {
     const a = applicants[index];
     if (!a) return;
@@ -388,7 +420,6 @@ document.addEventListener('DOMContentLoaded', () => {
   closeDetails.addEventListener('click', () => detailsModal.classList.add('hidden'));
   closeDetails2.addEventListener('click', () => detailsModal.classList.add('hidden'));
 
-  // Search & filter
   function applyFilters() {
     const q = (searchInput.value || '').toLowerCase().trim();
     const f = filterSelect.value;
@@ -403,12 +434,10 @@ document.addEventListener('DOMContentLoaded', () => {
   searchInput.addEventListener('input', applyFilters);
   filterSelect.addEventListener('change', applyFilters);
 
-  // Month filter change
   monthFilterSelect.addEventListener('change', () => {
     loadData();
   });
 
-  // Export CSV
   exportCsvBtn.addEventListener('click', () => {
     if (!applicants.length) { showToast('No data to export', '#b91c1c'); return; }
     const csv = Papa.unparse(applicants.map(a => ({
@@ -436,6 +465,5 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('CSV exported', '#0ea5a2');
   });
 
-  // Initial load
   loadData();
 });
