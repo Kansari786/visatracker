@@ -1,8 +1,7 @@
-// VisaTracker - script.js (WITH DEBUGGING)
+// VisaTracker - script.js (FINAL FIXED - All Issues Resolved)
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwppefXt4k5A7KPTHcSOSp6TOB3O-OqcQK8MJ1sajs2VrqUeM5MhPrb2o6jKznGpIpA/exec';
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Elements
   const addBtn = document.getElementById('add-applicant');
   const modal = document.getElementById('modal');
   const closeModalBtn = document.getElementById('close-modal');
@@ -23,13 +22,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const monthFilterSelect = document.getElementById('month-filter');
   const exportCsvBtn = document.getElementById('export-csv');
 
-  // Data
   let applicants = [];
   let editingIndex = -1;
   let editingRowIndex = -1;
   let currentPhotoBase64 = '';
 
-  // Helpers
   function showToast(text, bg = '#16a34a') {
     Toastify({
       text,
@@ -60,7 +57,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return isNaN(age) ? '' : age;
   }
 
-  // Load data from Google Sheets
   async function loadData() {
     try {
       showToast('Loading data...', '#0ea5a2');
@@ -73,11 +69,8 @@ document.addEventListener('DOMContentLoaded', () => {
         url += `?month=${month}&year=${year}`;
       }
       
-      console.log('Loading from URL:', url);
       const response = await fetch(url);
       const data = await response.json();
-      
-      console.log('Received data:', data);
       
       if (data.result === 'success') {
         applicants = data.applicants.map((row, idx) => ({
@@ -105,7 +98,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Render table rows
   function renderTable(filtered = applicants) {
     tableBody.innerHTML = '';
     if (!filtered.length) {
@@ -203,7 +195,7 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
   });
 
-  // Submit handler with DETAILED LOGGING
+  // FIXED: Form submit with proper fetch handling
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -227,91 +219,68 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const record = {
-      name, passport, mobile, jobProfile, dob, address,
-      status, advance: Number(advance), final: Number(finalAmt),
-      photo: currentPhotoBase64 || ''
-    };
+    // Build form data (more compatible than JSON)
+    const formData = new URLSearchParams();
+    formData.append('name', name);
+    formData.append('passport', passport);
+    formData.append('mobile', mobile);
+    formData.append('jobProfile', jobProfile);
+    formData.append('dob', dob);
+    formData.append('address', address);
+    formData.append('status', status);
+    formData.append('advance', advance);
+    formData.append('final', finalAmt);
+    formData.append('photo', currentPhotoBase64 || '');
 
     try {
       showToast('Saving...', '#0ea5a2');
       
       if (editingIndex >= 0) {
         // EDIT mode
-        record.action = 'edit';
-        record.rowIndex = editingRowIndex;
+        formData.append('action', 'edit');
+        formData.append('rowIndex', editingRowIndex);
         
-        console.log('EDITING - Sending data:', {
-          action: record.action,
-          rowIndex: record.rowIndex,
-          name: record.name
-        });
-        
-        const response = await fetch(SCRIPT_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(record),
-          redirect: 'follow'
-        });
-        
-        console.log('Response status:', response.status);
-        const result = await response.json();
-        console.log('Edit result:', result);
-        
-        if (result.result === 'success') {
-          showToast('Applicant updated successfully', '#0ea5a2');
-          editingIndex = -1;
-          editingRowIndex = -1;
-        } else {
-          console.error('Edit failed:', result.message);
-          showToast('Error updating: ' + result.message, '#b91c1c');
-          return;
-        }
+        console.log('Editing row:', editingRowIndex);
       } else {
         // ADD mode
-        record.action = 'add';
-        
-        console.log('ADDING - Sending data:', {
-          action: record.action,
-          name: record.name
-        });
-        
-        const response = await fetch(SCRIPT_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(record),
-          redirect: 'follow'
-        });
-        
-        console.log('Response status:', response.status);
-        const result = await response.json();
-        console.log('Add result:', result);
-        
-        if (result.result === 'success') {
-          showToast('Applicant added successfully', '#16a34a');
-        } else {
-          console.error('Add failed:', result.message);
-          showToast('Error adding: ' + result.message, '#b91c1c');
-          return;
-        }
+        formData.append('action', 'add');
+        console.log('Adding new applicant');
       }
-
-      await loadData();
-      form.reset();
-      photoPreview.innerHTML = '';
-      currentPhotoBase64 = '';
-      modal.classList.add('hidden');
+      
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: formData,
+        redirect: 'follow'
+      });
+      
+      const result = await response.json();
+      console.log('Server response:', result);
+      
+      if (result.result === 'success') {
+        if (editingIndex >= 0) {
+          showToast('Applicant updated successfully', '#0ea5a2');
+        } else {
+          showToast('Applicant added successfully', '#16a34a');
+        }
+        
+        editingIndex = -1;
+        editingRowIndex = -1;
+        await loadData();
+        form.reset();
+        photoPreview.innerHTML = '';
+        currentPhotoBase64 = '';
+        modal.classList.add('hidden');
+      } else {
+        showToast('Error: ' + result.message, '#b91c1c');
+      }
       
     } catch (error) {
       console.error('Save error:', error);
-      showToast('Failed to save: ' + error.message, '#b91c1c');
+      showToast('Network error. Please check your connection.', '#b91c1c');
     }
   });
 
+  // FIXED: Edit function with proper date formatting
   window.editApplicant = function (index) {
     const a = applicants[index];
     if (!a) return;
@@ -319,22 +288,35 @@ document.addEventListener('DOMContentLoaded', () => {
     editingIndex = index;
     editingRowIndex = a.rowIndex;
     
-    console.log('Opening edit for applicant:', {
-      index: index,
-      rowIndex: editingRowIndex,
-      name: a.name
-    });
-    
     modalTitle.textContent = 'Edit Applicant';
     document.getElementById('name').value = a.name;
     document.getElementById('passport').value = a.passport;
-    document.getElementById('dob').value = a.dob;
-    document.getElementById('address').value = a.address;
     document.getElementById('mobile').value = a.mobile;
     document.getElementById('jobProfile').value = a.jobProfile;
+    document.getElementById('address').value = a.address;
     document.getElementById('status').value = a.status;
     document.getElementById('advance').value = a.advance;
     document.getElementById('final').value = a.final;
+    
+    // FIX: Convert date to YYYY-MM-DD format for date input
+    if (a.dob) {
+      let dobValue = a.dob;
+      
+      // If it's a date object or string, convert to YYYY-MM-DD
+      if (typeof dobValue === 'string') {
+        // Handle various date formats
+        const dateObj = new Date(dobValue);
+        if (!isNaN(dateObj.getTime())) {
+          const year = dateObj.getFullYear();
+          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+          const day = String(dateObj.getDate()).padStart(2, '0');
+          dobValue = `${year}-${month}-${day}`;
+        }
+      }
+      
+      document.getElementById('dob').value = dobValue;
+    }
+    
     currentPhotoBase64 = a.photo || '';
     photoPreview.innerHTML = a.photo ? `<img src="${a.photo}" class="details-photo">` : '';
     modal.classList.remove('hidden');
@@ -348,22 +330,17 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       showToast('Deleting...', '#0ea5a2');
       
-      console.log('Deleting row:', app.rowIndex);
+      const formData = new URLSearchParams();
+      formData.append('action', 'delete');
+      formData.append('rowIndex', app.rowIndex);
       
       const response = await fetch(SCRIPT_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          action: 'delete',
-          rowIndex: app.rowIndex
-        }),
+        body: formData,
         redirect: 'follow'
       });
       
       const result = await response.json();
-      console.log('Delete result:', result);
       
       if (result.result === 'success') {
         showToast('Applicant deleted successfully', '#dc2626');
@@ -373,7 +350,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (error) {
       console.error('Delete error:', error);
-      showToast('Failed to delete: ' + error.message, '#b91c1c');
+      showToast('Network error. Please try again.', '#b91c1c');
     }
   };
 
@@ -433,10 +410,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   searchInput.addEventListener('input', applyFilters);
   filterSelect.addEventListener('change', applyFilters);
-
-  monthFilterSelect.addEventListener('change', () => {
-    loadData();
-  });
+  monthFilterSelect.addEventListener('change', () => loadData());
 
   exportCsvBtn.addEventListener('click', () => {
     if (!applicants.length) { showToast('No data to export', '#b91c1c'); return; }
