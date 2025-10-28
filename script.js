@@ -1,5 +1,5 @@
-// VisaTracker - script.js (FINAL FIXED - All Issues Resolved)
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz92icWB9-RcdvJQVlosbnlbwVZYgA5wwdjo7c7Psbzi-qUcID6QicUXwMTwjGFOIKB/exec';
+// VisaTracker - script.js (OPTIMIZED - Separate Month/Year + Faster)
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz-PyZPT5p_DhiSFDaOPq049JeLOXNybha8oBGqDqyQnltDGU7ujaeaEFBRJY6T9mbi/exec';
 
 document.addEventListener('DOMContentLoaded', () => {
   const addBtn = document.getElementById('add-applicant');
@@ -20,6 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const searchInput = document.getElementById('search');
   const filterSelect = document.getElementById('filter');
   const monthFilterSelect = document.getElementById('month-filter');
+  const yearFilterSelect = document.getElementById('year-filter');
+  const loadingIndicator = document.getElementById('loading-indicator');
   const exportCsvBtn = document.getElementById('export-csv');
 
   let applicants = [];
@@ -35,6 +37,14 @@ document.addEventListener('DOMContentLoaded', () => {
       position: 'right',
       style: { background: bg },
     }).showToast();
+  }
+
+  function showLoading(show) {
+    if (show) {
+      loadingIndicator.classList.remove('hidden');
+    } else {
+      loadingIndicator.classList.add('hidden');
+    }
   }
 
   function getStatusClass(status) {
@@ -57,20 +67,39 @@ document.addEventListener('DOMContentLoaded', () => {
     return isNaN(age) ? '' : age;
   }
 
+  // OPTIMIZED: Load data with server-side filtering
   async function loadData() {
     try {
+      showLoading(true);
       showToast('Loading data...', '#0ea5a2');
       
-      const monthFilter = monthFilterSelect.value;
-      let url = SCRIPT_URL;
+      const month = monthFilterSelect.value;
+      const year = yearFilterSelect.value;
       
-      if (monthFilter && monthFilter !== 'all') {
-        const [month, year] = monthFilter.split('-');
-        url += `?month=${month}&year=${year}`;
+      // Build URL with filters - server filters the data!
+      let url = SCRIPT_URL;
+      const params = [];
+      
+      if (month !== 'all') {
+        params.push(`month=${month}`);
       }
+      
+      if (year) {
+        params.push(`year=${year}`);
+      }
+      
+      if (params.length > 0) {
+        url += '?' + params.join('&');
+      }
+      
+      console.log('Loading from:', url);
+      const startTime = performance.now();
       
       const response = await fetch(url);
       const data = await response.json();
+      
+      const loadTime = performance.now() - startTime;
+      console.log(`Data loaded in ${loadTime.toFixed(0)}ms`);
       
       if (data.result === 'success') {
         applicants = data.applicants.map((row, idx) => ({
@@ -87,48 +116,74 @@ document.addEventListener('DOMContentLoaded', () => {
           final: Number(row[9]) || 0,
           photo: row[10] || ''
         }));
+        
         renderTable();
-        showToast('Data loaded successfully', '#16a34a');
+        
+        const monthName = month === 'all' ? 'All months' : new Date(2025, month - 1).toLocaleString('default', { month: 'long' });
+        showToast(`Loaded ${applicants.length} applicants (${monthName} ${year})`, '#16a34a');
       } else {
-        showToast('Error loading data: ' + data.message, '#b91c1c');
+        showToast('Error: ' + data.message, '#b91c1c');
       }
     } catch (error) {
       console.error('Load error:', error);
-      showToast('Failed to load data: ' + error.message, '#b91c1c');
+      showToast('Failed to load data', '#b91c1c');
+    } finally {
+      showLoading(false);
     }
   }
 
+  // OPTIMIZED: Batch render for smoother performance
   function renderTable(filtered = applicants) {
     tableBody.innerHTML = '';
+    
     if (!filtered.length) {
       tableBody.innerHTML = `<tr><td colspan="10" class="px-4 py-6 text-center text-gray-500">No applicants found</td></tr>`;
       return;
     }
 
-    filtered.forEach((app, idx) => {
-      const tr = document.createElement('tr');
-      tr.className = 'hover:bg-gray-50';
-      const age = calculateAge(app.dob);
-      tr.innerHTML = `
-        <td class="px-4 py-3">
-          ${app.photo ? `<img src="${app.photo}" class="photo-thumb" alt="photo">` : `<div class="photo-thumb bg-gray-100"></div>`}
-        </td>
-        <td class="px-4 py-3">${escapeHtml(app.name)}</td>
-        <td class="px-4 py-3 font-mono">${escapeHtml(app.passport)}</td>
-        <td class="px-4 py-3">${escapeHtml(app.mobile || '')}</td>
-        <td class="px-4 py-3">${escapeHtml(app.jobProfile || '')}</td>
-        <td class="px-4 py-3">${age}</td>
-        <td class="px-4 py-3"><span class="status-badge ${getStatusClass(app.status)}">${escapeHtml(app.status)}</span></td>
-        <td class="px-4 py-3">₹${formatNumber(app.advance)}</td>
-        <td class="px-4 py-3">₹${formatNumber(app.final)}</td>
-        <td class="px-4 py-3 table-actions">
-          <button class="px-2 py-1 bg-blue-600 text-white rounded" onclick="viewApplicant(${idx})">View</button>
-          <button class="px-2 py-1 bg-yellow-500 text-white rounded" onclick="editApplicant(${idx})">Edit</button>
-          <button class="px-2 py-1 bg-red-600 text-white rounded" onclick="deleteApplicant(${idx})">Delete</button>
-        </td>
-      `;
-      tableBody.appendChild(tr);
-    });
+    // Render in batches for smoother UX
+    const batchSize = 10;
+    let currentIndex = 0;
+
+    function renderBatch() {
+      const endIndex = Math.min(currentIndex + batchSize, filtered.length);
+      
+      for (let i = currentIndex; i < endIndex; i++) {
+        const app = filtered[i];
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-50';
+        const age = calculateAge(app.dob);
+        
+        tr.innerHTML = `
+          <td class="px-4 py-3">
+            ${app.photo ? `<img src="${app.photo}" class="photo-thumb" alt="photo">` : `<div class="photo-thumb bg-gray-100"></div>`}
+          </td>
+          <td class="px-4 py-3">${escapeHtml(app.name)}</td>
+          <td class="px-4 py-3 font-mono">${escapeHtml(app.passport)}</td>
+          <td class="px-4 py-3">${escapeHtml(app.mobile || '')}</td>
+          <td class="px-4 py-3">${escapeHtml(app.jobProfile || '')}</td>
+          <td class="px-4 py-3">${age}</td>
+          <td class="px-4 py-3"><span class="status-badge ${getStatusClass(app.status)}">${escapeHtml(app.status)}</span></td>
+          <td class="px-4 py-3">₹${formatNumber(app.advance)}</td>
+          <td class="px-4 py-3">₹${formatNumber(app.final)}</td>
+          <td class="px-4 py-3 table-actions">
+            <button class="px-2 py-1 bg-blue-600 text-white rounded" onclick="viewApplicant(${i})">View</button>
+            <button class="px-2 py-1 bg-yellow-500 text-white rounded" onclick="editApplicant(${i})">Edit</button>
+            <button class="px-2 py-1 bg-red-600 text-white rounded" onclick="deleteApplicant(${i})">Delete</button>
+          </td>
+        `;
+        
+        tableBody.appendChild(tr);
+      }
+      
+      currentIndex = endIndex;
+      
+      if (currentIndex < filtered.length) {
+        requestAnimationFrame(renderBatch);
+      }
+    }
+    
+    renderBatch();
   }
 
   function formatNumber(v) {
@@ -195,7 +250,6 @@ document.addEventListener('DOMContentLoaded', () => {
     e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
   });
 
-  // FIXED: Form submit with proper fetch handling
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -219,7 +273,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Build form data (more compatible than JSON)
     const formData = new URLSearchParams();
     formData.append('name', name);
     formData.append('passport', passport);
@@ -236,15 +289,10 @@ document.addEventListener('DOMContentLoaded', () => {
       showToast('Saving...', '#0ea5a2');
       
       if (editingIndex >= 0) {
-        // EDIT mode
         formData.append('action', 'edit');
         formData.append('rowIndex', editingRowIndex);
-        
-        console.log('Editing row:', editingRowIndex);
       } else {
-        // ADD mode
         formData.append('action', 'add');
-        console.log('Adding new applicant');
       }
       
       const response = await fetch(SCRIPT_URL, {
@@ -254,7 +302,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       
       const result = await response.json();
-      console.log('Server response:', result);
       
       if (result.result === 'success') {
         if (editingIndex >= 0) {
@@ -280,7 +327,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // FIXED: Edit function with proper date formatting
   window.editApplicant = function (index) {
     const a = applicants[index];
     if (!a) return;
@@ -298,13 +344,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('advance').value = a.advance;
     document.getElementById('final').value = a.final;
     
-    // FIX: Convert date to YYYY-MM-DD format for date input
     if (a.dob) {
       let dobValue = a.dob;
-      
-      // If it's a date object or string, convert to YYYY-MM-DD
       if (typeof dobValue === 'string') {
-        // Handle various date formats
         const dateObj = new Date(dobValue);
         if (!isNaN(dateObj.getTime())) {
           const year = dateObj.getFullYear();
@@ -313,7 +355,6 @@ document.addEventListener('DOMContentLoaded', () => {
           dobValue = `${year}-${month}-${day}`;
         }
       }
-      
       document.getElementById('dob').value = dobValue;
     }
     
@@ -410,7 +451,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   searchInput.addEventListener('input', applyFilters);
   filterSelect.addEventListener('change', applyFilters);
+  
+  // OPTIMIZED: Reload data when month or year changes
   monthFilterSelect.addEventListener('change', () => loadData());
+  yearFilterSelect.addEventListener('change', () => loadData());
 
   exportCsvBtn.addEventListener('click', () => {
     if (!applicants.length) { showToast('No data to export', '#b91c1c'); return; }
@@ -439,5 +483,6 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('CSV exported', '#0ea5a2');
   });
 
+  // Initial load
   loadData();
 });
