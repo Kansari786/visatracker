@@ -27,8 +27,13 @@
         <div class="text-sm opacity-80">VisaTracker</div>
       </div>
       <div class="flex items-center gap-3">
-        <button class="p-2 rounded-md bg-green-500/80 hover:bg-green-500">👤</button>
-        <button class="p-2 rounded-md bg-green-500/80 hover:bg-green-500">⚙️</button>
+        <div class="flex items-center gap-2 bg-green-500/80 px-3 py-2 rounded-md">
+          <span class="text-sm">👤</span>
+          <span id="username-display" class="text-sm font-medium">User</span>
+        </div>
+        <button id="logout-btn" class="px-3 py-2 rounded-md bg-red-500 hover:bg-red-600 text-sm font-medium transition-colors">
+          Logout
+        </button>
       </div>
     </div>
   </header>

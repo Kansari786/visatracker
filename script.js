@@ -1,7 +1,34 @@
-// VisaTracker - script.js (OPTIMIZED - Separate Month/Year + Faster)
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz-PyZPT5p_DhiSFDaOPq049JeLOXNybha8oBGqDqyQnltDGU7ujaeaEFBRJY6T9mbi/exec';
+// VisaTracker - script.js (WITH AUTHENTICATION)
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyG8chw4nBpFHKGbbzInDBC5ExoqF5oPKpdt3FpaTTnz9xOPFEQLCNro8tS3lSp7P5P/exec';
+
+// Get auth token from sessionStorage
+function getToken() {
+  return sessionStorage.getItem('visa_token');
+}
+
+// Check if user is authenticated
+function checkAuth() {
+  const token = getToken();
+  if (!token) {
+    window.location.href = 'login.html';
+    return false;
+  }
+  return true;
+}
+
+// Logout function
+function logout() {
+  sessionStorage.removeItem('visa_token');
+  sessionStorage.removeItem('visa_username');
+  window.location.href = 'login.html';
+}
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Check authentication on page load
+  if (!checkAuth()) {
+    return;
+  }
+
   const addBtn = document.getElementById('add-applicant');
   const modal = document.getElementById('modal');
   const closeModalBtn = document.getElementById('close-modal');
@@ -23,11 +50,24 @@ document.addEventListener('DOMContentLoaded', () => {
   const yearFilterSelect = document.getElementById('year-filter');
   const loadingIndicator = document.getElementById('loading-indicator');
   const exportCsvBtn = document.getElementById('export-csv');
+  const logoutBtn = document.getElementById('logout-btn');
 
   let applicants = [];
   let editingIndex = -1;
   let editingRowIndex = -1;
   let currentPhotoBase64 = '';
+
+  // Display username
+  const username = sessionStorage.getItem('visa_username') || 'User';
+  const usernameDisplay = document.getElementById('username-display');
+  if (usernameDisplay) {
+    usernameDisplay.textContent = username;
+  }
+
+  // Logout button
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', logout);
+  }
 
   function showToast(text, bg = '#16a34a') {
     Toastify({
@@ -67,18 +107,34 @@ document.addEventListener('DOMContentLoaded', () => {
     return isNaN(age) ? '' : age;
   }
 
-  // OPTIMIZED: Load data with server-side filtering
+  // Handle auth errors
+  function handleAuthError(result) {
+    if (result.code === 'AUTH_REQUIRED' || result.message === 'Unauthorized') {
+      showToast('Session expired. Please login again.', '#b91c1c');
+      setTimeout(() => logout(), 1500);
+      return true;
+    }
+    return false;
+  }
+
+  // Load data with authentication
   async function loadData() {
     try {
       showLoading(true);
       showToast('Loading data...', '#0ea5a2');
       
+      const token = getToken();
+      if (!token) {
+        logout();
+        return;
+      }
+      
       const month = monthFilterSelect.value;
       const year = yearFilterSelect.value;
       
-      // Build URL with filters - server filters the data!
+      // Build URL with filters and token
       let url = SCRIPT_URL;
-      const params = [];
+      const params = [`token=${encodeURIComponent(token)}`];
       
       if (month !== 'all') {
         params.push(`month=${month}`);
@@ -88,9 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
         params.push(`year=${year}`);
       }
       
-      if (params.length > 0) {
-        url += '?' + params.join('&');
-      }
+      url += '?' + params.join('&');
       
       console.log('Loading from:', url);
       const startTime = performance.now();
@@ -122,6 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const monthName = month === 'all' ? 'All months' : new Date(2025, month - 1).toLocaleString('default', { month: 'long' });
         showToast(`Loaded ${applicants.length} applicants (${monthName} ${year})`, '#16a34a');
       } else {
+        if (handleAuthError(data)) return;
         showToast('Error: ' + data.message, '#b91c1c');
       }
     } catch (error) {
@@ -132,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // OPTIMIZED: Batch render for smoother performance
+  // Batch render for smoother performance
   function renderTable(filtered = applicants) {
     tableBody.innerHTML = '';
     
@@ -141,7 +196,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    // Render in batches for smoother UX
     const batchSize = 10;
     let currentIndex = 0;
 
@@ -253,6 +307,12 @@ document.addEventListener('DOMContentLoaded', () => {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
+    const token = getToken();
+    if (!token) {
+      logout();
+      return;
+    }
+
     const name = document.getElementById('name').value.trim();
     const passport = document.getElementById('passport').value.trim();
     const dob = document.getElementById('dob').value;
@@ -274,6 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const formData = new URLSearchParams();
+    formData.append('token', token);
     formData.append('name', name);
     formData.append('passport', passport);
     formData.append('mobile', mobile);
@@ -318,6 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPhotoBase64 = '';
         modal.classList.add('hidden');
       } else {
+        if (handleAuthError(result)) return;
         showToast('Error: ' + result.message, '#b91c1c');
       }
       
@@ -366,6 +428,12 @@ document.addEventListener('DOMContentLoaded', () => {
   window.deleteApplicant = async function (index) {
     if (!confirm('Delete this applicant?')) return;
     
+    const token = getToken();
+    if (!token) {
+      logout();
+      return;
+    }
+    
     const app = applicants[index];
     
     try {
@@ -373,6 +441,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const formData = new URLSearchParams();
       formData.append('action', 'delete');
+      formData.append('token', token);
       formData.append('rowIndex', app.rowIndex);
       
       const response = await fetch(SCRIPT_URL, {
@@ -387,6 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast('Applicant deleted successfully', '#dc2626');
         await loadData();
       } else {
+        if (handleAuthError(result)) return;
         showToast('Error deleting: ' + result.message, '#b91c1c');
       }
     } catch (error) {
@@ -452,7 +522,6 @@ document.addEventListener('DOMContentLoaded', () => {
   searchInput.addEventListener('input', applyFilters);
   filterSelect.addEventListener('change', applyFilters);
   
-  // OPTIMIZED: Reload data when month or year changes
   monthFilterSelect.addEventListener('change', () => loadData());
   yearFilterSelect.addEventListener('change', () => loadData());
 
