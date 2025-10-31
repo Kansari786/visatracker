@@ -50,9 +50,7 @@
   overflow-y: auto;          /* enable vertical scrolling inside modal */
   scrollbar-width: thin;     /* (optional) for neat scroll on Firefox */
   scrollbar-color: #a3a3a3 transparent;
-  
 }
-
 
 /* Table photo */
 .photo-thumb {
@@ -87,6 +85,22 @@
 .status-rejected   { background: #ef4444; }   /* red */
 .status-on-hold    { background: #6b7280; }   /* gray */
 .status-withdrawn  { background: #7c3aed; }   /* purple */
+
+/* Progress bar */
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #16a34a 0%, #22c55e 100%);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
 
 /* small helpers */
 .table-actions button { margin-right: 6px; }

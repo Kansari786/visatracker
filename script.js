@@ -406,10 +406,11 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('advance').value = a.advance;
     document.getElementById('final').value = a.final;
     
+    // Format DOB for input field
     if (a.dob) {
       let dobValue = a.dob;
-      if (typeof dobValue === 'string') {
-        const dateObj = new Date(dobValue);
+      if (typeof dobValue === 'string' || dobValue instanceof Date) {
+        const dateObj = dobValue instanceof Date ? dobValue : new Date(dobValue);
         if (!isNaN(dateObj.getTime())) {
           const year = dateObj.getFullYear();
           const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -418,8 +419,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
       document.getElementById('dob').value = dobValue;
+    } else {
+      document.getElementById('dob').value = '';
     }
     
+    // Store existing photo - keep it if user doesn't change
     currentPhotoBase64 = a.photo || '';
     photoPreview.innerHTML = a.photo ? `<img src="${a.photo}" class="details-photo">` : '';
     modal.classList.remove('hidden');
