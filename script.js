@@ -1,6 +1,6 @@
 // VisaTracker - script.js (WITH AUTHENTICATION - UPDATED)
 
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyG8chw4nBpFHKGbbzInDBC5ExoqF5oPKpdt3FpaTTnz9xOPFEQLCNro8tS3lSp7P5P/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUepFcfKcBjecSavbWRpezz8ZLShdvMezzb4sTFvWblXyneo24TYEPQBjwhnkL3Qat/exec';
 
 function getToken() {
     return sessionStorage.getItem('visa_token');
