@@ -1,12 +1,10 @@
-// VisaTracker - script.js (WITH AUTHENTICATION)
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUepFcfKcBjecSavbWRpezz8ZLShdvMezzb4sTFvWblXyneo24TYEPQBjwhnkL3Qat/exec';
+// VisaTracker - script.js (COMPLETELY FIXED)
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz-PyZPT5p_DhiSFDaOPq049JeLOXNybha8oBGqDqyQnltDGU7ujaeaEFBRJY6T9mbi/exec';
 
-// Get auth token from sessionStorage
 function getToken() {
   return sessionStorage.getItem('visa_token');
 }
 
-// Check if user is authenticated
 function checkAuth() {
   const token = getToken();
   if (!token) {
@@ -16,7 +14,6 @@ function checkAuth() {
   return true;
 }
 
-// Logout function
 function logout() {
   sessionStorage.removeItem('visa_token');
   sessionStorage.removeItem('visa_username');
@@ -24,10 +21,7 @@ function logout() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Check authentication on page load
-  if (!checkAuth()) {
-    return;
-  }
+  if (!checkAuth()) return;
 
   const addBtn = document.getElementById('add-applicant');
   const modal = document.getElementById('modal');
@@ -38,12 +32,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const photoInput = document.getElementById('photo');
   const photoPreview = document.getElementById('photo-preview');
   const modalTitle = document.getElementById('modal-title');
-
   const detailsModal = document.getElementById('details-modal');
   const detailsContent = document.getElementById('details-content');
   const closeDetails = document.getElementById('close-details');
   const closeDetails2 = document.getElementById('close-details-2');
-
   const searchInput = document.getElementById('search');
   const filterSelect = document.getElementById('filter');
   const monthFilterSelect = document.getElementById('month-filter');
@@ -55,19 +47,13 @@ document.addEventListener('DOMContentLoaded', () => {
   let applicants = [];
   let editingIndex = -1;
   let editingRowIndex = -1;
-  let currentPhotoBase64 = '';
+  let newPhotoBase64 = ''; // For newly uploaded photos
+  let keepExistingPhoto = ''; // To preserve existing photo during edit
 
-  // Display username
   const username = sessionStorage.getItem('visa_username') || 'User';
   const usernameDisplay = document.getElementById('username-display');
-  if (usernameDisplay) {
-    usernameDisplay.textContent = username;
-  }
-
-  // Logout button
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', logout);
-  }
+  if (usernameDisplay) usernameDisplay.textContent = username;
+  if (logoutBtn) logoutBtn.addEventListener('click', logout);
 
   function showToast(text, bg = '#16a34a') {
     Toastify({
@@ -80,21 +66,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function showLoading(show) {
-    if (show) {
-      loadingIndicator.classList.remove('hidden');
-    } else {
-      loadingIndicator.classList.add('hidden');
-    }
+    loadingIndicator.classList.toggle('hidden', !show);
   }
 
   function getStatusClass(status) {
-    if (status === 'Visa In Process') return 'status-in-process';
-    if (status === 'Visa Received') return 'status-received';
-    if (status === 'Departure') return 'status-departure';
-    if (status === 'Visa Rejected') return 'status-rejected';
-    if (status === 'On Hold') return 'status-on-hold';
-    if (status === 'Withdrawn Application') return 'status-withdrawn';
-    return 'status-on-hold';
+    const statusMap = {
+      'Visa In Process': 'status-in-process',
+      'Visa Received': 'status-received',
+      'Departure': 'status-departure',
+      'Visa Rejected': 'status-rejected',
+      'On Hold': 'status-on-hold',
+      'Withdrawn Application': 'status-withdrawn'
+    };
+    return statusMap[status] || 'status-on-hold';
   }
 
   function calculateAge(dob) {
@@ -107,7 +91,16 @@ document.addEventListener('DOMContentLoaded', () => {
     return isNaN(age) ? '' : age;
   }
 
-  // Handle auth errors
+  function formatDate(dateValue) {
+    if (!dateValue) return '';
+    const dateObj = dateValue instanceof Date ? dateValue : new Date(dateValue);
+    if (isNaN(dateObj.getTime())) return '';
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   function handleAuthError(result) {
     if (result.code === 'AUTH_REQUIRED' || result.message === 'Unauthorized') {
       showToast('Session expired. Please login again.', '#b91c1c');
@@ -117,12 +110,9 @@ document.addEventListener('DOMContentLoaded', () => {
     return false;
   }
 
-  // Load data with authentication
   async function loadData() {
     try {
       showLoading(true);
-      showToast('Loading data...', '#0ea5a2');
-      
       const token = getToken();
       if (!token) {
         logout();
@@ -131,29 +121,13 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const month = monthFilterSelect.value;
       const year = yearFilterSelect.value;
+      let url = SCRIPT_URL + `?token=${encodeURIComponent(token)}`;
       
-      // Build URL with filters and token
-      let url = SCRIPT_URL;
-      const params = [`token=${encodeURIComponent(token)}`];
-      
-      if (month !== 'all') {
-        params.push(`month=${month}`);
-      }
-      
-      if (year) {
-        params.push(`year=${year}`);
-      }
-      
-      url += '?' + params.join('&');
-      
-      console.log('Loading from:', url);
-      const startTime = performance.now();
+      if (month !== 'all') url += `&month=${month}`;
+      if (year) url += `&year=${year}`;
       
       const response = await fetch(url);
       const data = await response.json();
-      
-      const loadTime = performance.now() - startTime;
-      console.log(`Data loaded in ${loadTime.toFixed(0)}ms`);
       
       if (data.result === 'success') {
         applicants = data.applicants.map((row, idx) => ({
@@ -172,7 +146,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }));
         
         renderTable();
-        
         const monthName = month === 'all' ? 'All months' : new Date(2025, month - 1).toLocaleString('default', { month: 'long' });
         showToast(`Loaded ${applicants.length} applicants (${monthName} ${year})`, '#16a34a');
       } else {
@@ -187,7 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Batch render for smoother performance
   function renderTable(filtered = applicants) {
     tableBody.innerHTML = '';
     
@@ -196,48 +168,32 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const batchSize = 10;
-    let currentIndex = 0;
-
-    function renderBatch() {
-      const endIndex = Math.min(currentIndex + batchSize, filtered.length);
+    filtered.forEach((app, i) => {
+      const tr = document.createElement('tr');
+      tr.className = 'hover:bg-gray-50';
+      const age = calculateAge(app.dob);
       
-      for (let i = currentIndex; i < endIndex; i++) {
-        const app = filtered[i];
-        const tr = document.createElement('tr');
-        tr.className = 'hover:bg-gray-50';
-        const age = calculateAge(app.dob);
-        
-        tr.innerHTML = `
-          <td class="px-4 py-3">
-            ${app.photo ? `<img src="${app.photo}" class="photo-thumb" alt="photo">` : `<div class="photo-thumb bg-gray-100"></div>`}
-          </td>
-          <td class="px-4 py-3">${escapeHtml(app.name)}</td>
-          <td class="px-4 py-3 font-mono">${escapeHtml(app.passport)}</td>
-          <td class="px-4 py-3">${escapeHtml(app.mobile || '')}</td>
-          <td class="px-4 py-3">${escapeHtml(app.jobProfile || '')}</td>
-          <td class="px-4 py-3">${age}</td>
-          <td class="px-4 py-3"><span class="status-badge ${getStatusClass(app.status)}">${escapeHtml(app.status)}</span></td>
-          <td class="px-4 py-3">₹${formatNumber(app.advance)}</td>
-          <td class="px-4 py-3">₹${formatNumber(app.final)}</td>
-          <td class="px-4 py-3 table-actions">
-            <button class="px-2 py-1 bg-blue-600 text-white rounded" onclick="viewApplicant(${i})">View</button>
-            <button class="px-2 py-1 bg-yellow-500 text-white rounded" onclick="editApplicant(${i})">Edit</button>
-            <button class="px-2 py-1 bg-red-600 text-white rounded" onclick="deleteApplicant(${i})">Delete</button>
-          </td>
-        `;
-        
-        tableBody.appendChild(tr);
-      }
+      tr.innerHTML = `
+        <td class="px-4 py-3">
+          ${app.photo ? `<img src="${app.photo}" class="photo-thumb" alt="photo">` : `<div class="photo-thumb bg-gray-100"></div>`}
+        </td>
+        <td class="px-4 py-3">${escapeHtml(app.name)}</td>
+        <td class="px-4 py-3 font-mono">${escapeHtml(app.passport)}</td>
+        <td class="px-4 py-3">${escapeHtml(app.mobile || '')}</td>
+        <td class="px-4 py-3">${escapeHtml(app.jobProfile || '')}</td>
+        <td class="px-4 py-3">${age}</td>
+        <td class="px-4 py-3"><span class="status-badge ${getStatusClass(app.status)}">${escapeHtml(app.status)}</span></td>
+        <td class="px-4 py-3">₹${formatNumber(app.advance)}</td>
+        <td class="px-4 py-3">₹${formatNumber(app.final)}</td>
+        <td class="px-4 py-3 table-actions">
+          <button class="px-2 py-1 bg-blue-600 text-white rounded" onclick="viewApplicant(${i})">View</button>
+          <button class="px-2 py-1 bg-yellow-500 text-white rounded" onclick="editApplicant(${i})">Edit</button>
+          <button class="px-2 py-1 bg-red-600 text-white rounded" onclick="deleteApplicant(${i})">Delete</button>
+        </td>
+      `;
       
-      currentIndex = endIndex;
-      
-      if (currentIndex < filtered.length) {
-        requestAnimationFrame(renderBatch);
-      }
-    }
-    
-    renderBatch();
+      tableBody.appendChild(tr);
+    });
   }
 
   function formatNumber(v) {
@@ -247,10 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function escapeHtml(s) {
     if (!s && s !== 0) return '';
-    return String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   addBtn.addEventListener('click', () => {
@@ -258,7 +211,8 @@ document.addEventListener('DOMContentLoaded', () => {
     editingRowIndex = -1;
     modalTitle.textContent = 'Add Applicant';
     form.reset();
-    currentPhotoBase64 = '';
+    newPhotoBase64 = '';
+    keepExistingPhoto = '';
     photoPreview.innerHTML = '';
     modal.classList.remove('hidden');
   });
@@ -269,8 +223,8 @@ document.addEventListener('DOMContentLoaded', () => {
   photoInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) {
-      currentPhotoBase64 = '';
-      photoPreview.innerHTML = '';
+      newPhotoBase64 = '';
+      photoPreview.innerHTML = keepExistingPhoto ? `<img src="${keepExistingPhoto}" class="details-photo" alt="current">` : '';
       return;
     }
     if (!file.type.startsWith('image/')) {
@@ -285,22 +239,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const reader = new FileReader();
     reader.onload = () => {
-      currentPhotoBase64 = reader.result;
-      photoPreview.innerHTML = `<img src="${currentPhotoBase64}" class="details-photo" alt="preview">`;
+      newPhotoBase64 = reader.result;
+      photoPreview.innerHTML = `<img src="${newPhotoBase64}" class="details-photo" alt="preview">`;
     };
     reader.readAsDataURL(file);
   });
 
-  const passportInput = document.getElementById('passport');
-  passportInput.addEventListener('input', (e) => {
-    let v = e.target.value.toUpperCase();
-    v = v.replace(/[^A-Z0-9]/g, '');
-    if (v.length > 8) v = v.slice(0, 8);
-    e.target.value = v;
+  document.getElementById('passport').addEventListener('input', (e) => {
+    let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    e.target.value = v.length > 8 ? v.slice(0, 8) : v;
   });
 
-  const mobileInput = document.getElementById('mobile');
-  mobileInput.addEventListener('input', (e) => {
+  document.getElementById('mobile').addEventListener('input', (e) => {
     e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
   });
 
@@ -333,8 +283,18 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // CRITICAL FIX: Use new photo if uploaded, otherwise keep existing
+    const photoToSend = newPhotoBase64 || keepExistingPhoto;
+
+    console.log('Submitting form:');
+    console.log('- Action:', editingIndex >= 0 ? 'edit' : 'add');
+    console.log('- Status:', status);
+    console.log('- Photo length:', photoToSend.length);
+    console.log('- Row Index:', editingRowIndex);
+
     const formData = new URLSearchParams();
     formData.append('token', token);
+    formData.append('action', editingIndex >= 0 ? 'edit' : 'add');
     formData.append('name', name);
     formData.append('passport', passport);
     formData.append('mobile', mobile);
@@ -344,40 +304,37 @@ document.addEventListener('DOMContentLoaded', () => {
     formData.append('status', status);
     formData.append('advance', advance);
     formData.append('final', finalAmt);
-    formData.append('photo', currentPhotoBase64 || '');
+    formData.append('photo', photoToSend);
+    
+    if (editingIndex >= 0) {
+      formData.append('rowIndex', editingRowIndex);
+    }
 
     try {
       showToast('Saving...', '#0ea5a2');
       
-      if (editingIndex >= 0) {
-        formData.append('action', 'edit');
-        formData.append('rowIndex', editingRowIndex);
-      } else {
-        formData.append('action', 'add');
-      }
-      
       const response = await fetch(SCRIPT_URL, {
         method: 'POST',
-        body: formData,
-        redirect: 'follow'
+        body: formData
       });
       
       const result = await response.json();
       
+      console.log('Server response:', result);
+      
       if (result.result === 'success') {
-        if (editingIndex >= 0) {
-          showToast('Applicant updated successfully', '#0ea5a2');
-        } else {
-          showToast('Applicant added successfully', '#16a34a');
-        }
+        showToast(editingIndex >= 0 ? 'Applicant updated successfully' : 'Applicant added successfully', '#16a34a');
         
         editingIndex = -1;
         editingRowIndex = -1;
-        await loadData();
+        newPhotoBase64 = '';
+        keepExistingPhoto = '';
+        
         form.reset();
         photoPreview.innerHTML = '';
-        currentPhotoBase64 = '';
         modal.classList.add('hidden');
+        
+        await loadData();
       } else {
         if (handleAuthError(result)) return;
         showToast('Error: ' + result.message, '#b91c1c');
@@ -396,6 +353,8 @@ document.addEventListener('DOMContentLoaded', () => {
     editingIndex = index;
     editingRowIndex = a.rowIndex;
     
+    console.log('Opening edit for:', a.name, 'Row:', a.rowIndex, 'Status:', a.status);
+    
     modalTitle.textContent = 'Edit Applicant';
     document.getElementById('name').value = a.name;
     document.getElementById('passport').value = a.passport;
@@ -405,23 +364,15 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('status').value = a.status;
     document.getElementById('advance').value = a.advance;
     document.getElementById('final').value = a.final;
+    document.getElementById('dob').value = formatDate(a.dob);
     
-    if (a.dob) {
-      let dobValue = a.dob;
-      if (typeof dobValue === 'string') {
-        const dateObj = new Date(dobValue);
-        if (!isNaN(dateObj.getTime())) {
-          const year = dateObj.getFullYear();
-          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-          const day = String(dateObj.getDate()).padStart(2, '0');
-          dobValue = `${year}-${month}-${day}`;
-        }
-      }
-      document.getElementById('dob').value = dobValue;
-    }
+    // CRITICAL FIX: Store existing photo
+    keepExistingPhoto = a.photo || '';
+    newPhotoBase64 = '';
     
-    currentPhotoBase64 = a.photo || '';
-    photoPreview.innerHTML = a.photo ? `<img src="${a.photo}" class="details-photo">` : '';
+    photoPreview.innerHTML = a.photo ? `<img src="${a.photo}" class="details-photo" alt="current">` : '';
+    photoInput.value = '';
+    
     modal.classList.remove('hidden');
   };
 
@@ -446,8 +397,7 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const response = await fetch(SCRIPT_URL, {
         method: 'POST',
-        body: formData,
-        redirect: 'follow'
+        body: formData
       });
       
       const result = await response.json();
@@ -480,6 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
       a.status === 'Visa Rejected' ? 10 : 0;
 
     const age = calculateAge(a.dob);
+    const formattedDob = formatDate(a.dob);
 
     detailsContent.innerHTML = `
       <div class="flex gap-4 items-start">
@@ -489,7 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <p class="text-sm"><strong>Passport:</strong> ${escapeHtml(a.passport)}</p>
           <p class="text-sm"><strong>Mobile:</strong> ${escapeHtml(a.mobile || '')}</p>
           <p class="text-sm"><strong>Job Profile:</strong> ${escapeHtml(a.jobProfile || '')}</p>
-          <p class="text-sm"><strong>DOB:</strong> ${escapeHtml(a.dob || '')} ${age ? '(' + age + ' years old)' : ''}</p>
+          <p class="text-sm"><strong>DOB:</strong> ${formattedDob} ${age ? '(' + age + ' years old)' : ''}</p>
           <p class="text-sm"><strong>Address:</strong> ${escapeHtml(a.address || '')}</p>
           <p class="text-sm mt-2"><strong>Status:</strong> <span class="status-badge ${getStatusClass(a.status)}">${escapeHtml(a.status)}</span></p>
           <div class="progress-bar mt-3"><div class="progress-fill" style="width: ${progress}%;"></div></div>
@@ -512,7 +463,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const q = (searchInput.value || '').toLowerCase().trim();
     const f = filterSelect.value;
     const filtered = applicants.filter(a => {
-      const matchesQ = (a.name || '').toLowerCase().includes(q) || (a.passport || '').toLowerCase().includes(q);
+      const matchesQ = (a.name || '').toLowerCase().includes(q) || 
+                       (a.passport || '').toLowerCase().includes(q) ||
+                       (a.mobile || '').toLowerCase().includes(q);
       const matchesF = !f || a.status === f;
       return matchesQ && matchesF;
     });
@@ -521,18 +474,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   searchInput.addEventListener('input', applyFilters);
   filterSelect.addEventListener('change', applyFilters);
-  
   monthFilterSelect.addEventListener('change', () => loadData());
   yearFilterSelect.addEventListener('change', () => loadData());
 
   exportCsvBtn.addEventListener('click', () => {
-    if (!applicants.length) { showToast('No data to export', '#b91c1c'); return; }
+    if (!applicants.length) { 
+      showToast('No data to export', '#b91c1c'); 
+      return; 
+    }
     const csv = Papa.unparse(applicants.map(a => ({
       name: a.name,
       passport: a.passport,
       mobile: a.mobile,
       jobProfile: a.jobProfile,
-      dob: a.dob,
+      dob: formatDate(a.dob),
       age: calculateAge(a.dob),
       address: a.address,
       status: a.status,
@@ -552,6 +507,5 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('CSV exported', '#0ea5a2');
   });
 
-  // Initial load
   loadData();
 });
