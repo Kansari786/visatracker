@@ -1,4 +1,4 @@
-// VisaTracker - script.js (WITH AUTHENTICATION)
+// VisaTracker - script.js (WITH AUTHENTICATION - FIXED)
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyG8chw4nBpFHKGbbzInDBC5ExoqF5oPKpdt3FpaTTnz9xOPFEQLCNro8tS3lSp7P5P/exec';
 
 // Get auth token from sessionStorage
@@ -56,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let editingIndex = -1;
   let editingRowIndex = -1;
   let currentPhotoBase64 = '';
+  let existingPhotoBase64 = ''; // Store original photo for edit
 
   // Display username
   const username = sessionStorage.getItem('visa_username') || 'User';
@@ -105,6 +106,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const m = today.getMonth() - birthDate.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
     return isNaN(age) ? '' : age;
+  }
+
+  // Format date to YYYY-MM-DD
+  function formatDate(dateValue) {
+    if (!dateValue) return '';
+    const dateObj = dateValue instanceof Date ? dateValue : new Date(dateValue);
+    if (isNaN(dateObj.getTime())) return '';
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   // Handle auth errors
@@ -259,7 +271,9 @@ document.addEventListener('DOMContentLoaded', () => {
     modalTitle.textContent = 'Add Applicant';
     form.reset();
     currentPhotoBase64 = '';
+    existingPhotoBase64 = '';
     photoPreview.innerHTML = '';
+    photoInput.value = '';
     modal.classList.remove('hidden');
   });
 
@@ -269,8 +283,12 @@ document.addEventListener('DOMContentLoaded', () => {
   photoInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) {
-      currentPhotoBase64 = '';
-      photoPreview.innerHTML = '';
+      currentPhotoBase64 = existingPhotoBase64; // Revert to existing if cleared
+      if (existingPhotoBase64) {
+        photoPreview.innerHTML = `<img src="${existingPhotoBase64}" class="details-photo" alt="preview">`;
+      } else {
+        photoPreview.innerHTML = '';
+      }
       return;
     }
     if (!file.type.startsWith('image/')) {
@@ -333,6 +351,9 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // Use currentPhotoBase64 if set, otherwise use existingPhotoBase64 (for edits without photo change)
+    const photoToSend = currentPhotoBase64 || existingPhotoBase64;
+
     const formData = new URLSearchParams();
     formData.append('token', token);
     formData.append('name', name);
@@ -344,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
     formData.append('status', status);
     formData.append('advance', advance);
     formData.append('final', finalAmt);
-    formData.append('photo', currentPhotoBase64 || '');
+    formData.append('photo', photoToSend);
 
     try {
       showToast('Saving...', '#0ea5a2');
@@ -373,10 +394,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         editingIndex = -1;
         editingRowIndex = -1;
+        currentPhotoBase64 = '';
+        existingPhotoBase64 = '';
         await loadData();
         form.reset();
         photoPreview.innerHTML = '';
-        currentPhotoBase64 = '';
+        photoInput.value = '';
         modal.classList.add('hidden');
       } else {
         if (handleAuthError(result)) return;
@@ -407,25 +430,23 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('final').value = a.final;
     
     // Format DOB for input field
-    if (a.dob) {
-      let dobValue = a.dob;
-      if (typeof dobValue === 'string' || dobValue instanceof Date) {
-        const dateObj = dobValue instanceof Date ? dobValue : new Date(dobValue);
-        if (!isNaN(dateObj.getTime())) {
-          const year = dateObj.getFullYear();
-          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-          const day = String(dateObj.getDate()).padStart(2, '0');
-          dobValue = `${year}-${month}-${day}`;
-        }
-      }
-      document.getElementById('dob').value = dobValue;
+    const formattedDob = formatDate(a.dob);
+    document.getElementById('dob').value = formattedDob;
+    
+    // Store existing photo
+    existingPhotoBase64 = a.photo || '';
+    currentPhotoBase64 = a.photo || '';
+    
+    // Show existing photo
+    if (a.photo) {
+      photoPreview.innerHTML = `<img src="${a.photo}" class="details-photo" alt="current photo">`;
     } else {
-      document.getElementById('dob').value = '';
+      photoPreview.innerHTML = '';
     }
     
-    // Store existing photo - keep it if user doesn't change
-    currentPhotoBase64 = a.photo || '';
-    photoPreview.innerHTML = a.photo ? `<img src="${a.photo}" class="details-photo">` : '';
+    // Clear file input
+    photoInput.value = '';
+    
     modal.classList.remove('hidden');
   };
 
@@ -484,6 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
       a.status === 'Visa Rejected' ? 10 : 0;
 
     const age = calculateAge(a.dob);
+    const formattedDob = formatDate(a.dob);
 
     detailsContent.innerHTML = `
       <div class="flex gap-4 items-start">
@@ -493,7 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <p class="text-sm"><strong>Passport:</strong> ${escapeHtml(a.passport)}</p>
           <p class="text-sm"><strong>Mobile:</strong> ${escapeHtml(a.mobile || '')}</p>
           <p class="text-sm"><strong>Job Profile:</strong> ${escapeHtml(a.jobProfile || '')}</p>
-          <p class="text-sm"><strong>DOB:</strong> ${escapeHtml(a.dob || '')} ${age ? '(' + age + ' years old)' : ''}</p>
+          <p class="text-sm"><strong>DOB:</strong> ${formattedDob} ${age ? '(' + age + ' years old)' : ''}</p>
           <p class="text-sm"><strong>Address:</strong> ${escapeHtml(a.address || '')}</p>
           <p class="text-sm mt-2"><strong>Status:</strong> <span class="status-badge ${getStatusClass(a.status)}">${escapeHtml(a.status)}</span></p>
           <div class="progress-bar mt-3"><div class="progress-fill" style="width: ${progress}%;"></div></div>
@@ -516,7 +538,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const q = (searchInput.value || '').toLowerCase().trim();
     const f = filterSelect.value;
     const filtered = applicants.filter(a => {
-      const matchesQ = (a.name || '').toLowerCase().includes(q) || (a.passport || '').toLowerCase().includes(q);
+      const matchesQ = (a.name || '').toLowerCase().includes(q) || 
+                       (a.passport || '').toLowerCase().includes(q) ||
+                       (a.mobile || '').toLowerCase().includes(q);
       const matchesF = !f || a.status === f;
       return matchesQ && matchesF;
     });
@@ -536,7 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
       passport: a.passport,
       mobile: a.mobile,
       jobProfile: a.jobProfile,
-      dob: a.dob,
+      dob: formatDate(a.dob),
       age: calculateAge(a.dob),
       address: a.address,
       status: a.status,
