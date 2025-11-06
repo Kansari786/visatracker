@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -234,5 +235,30 @@
 
   <!-- Main script -->
   <script src="script.js"></script>
+</body>
+</html>
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>VisaTracker - Redirect</title>
+  <script>
+    // This file forces the user to see login.html first.
+    // If you want automatic login later, tell me and I will change this.
+    try {
+      // Remove any invisible BOM and trim token
+      const t = (sessionStorage.getItem('visa_token')||'').replace(/^\uFEFF/,'').trim();
+      // We DO NOT auto-login. Always go to login page.
+      window.location.href = 'login.html';
+    } catch (e) {
+      // if anything fails, still go to login
+      window.location.href = 'login.html';
+    }
+  </script>
+</head>
+<body>
+  Redirecting to login...
 </body>
 </html>
