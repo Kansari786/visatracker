@@ -297,130 +297,68 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Submit add/edit
-  // ---- REPLACE THE FORM SUBMIT HANDLER WITH THIS (copy-paste entire block) ----
-if (form) form.addEventListener('submit', async (e) => {
-  e.preventDefault();
-
-  try {
-    const token = getToken();
-    if (!token) { logout(); return; }
-
-    // Read form values
-    const name = document.getElementById('name').value.trim();
-    const passport = document.getElementById('passport').value.trim().toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8);
-    const dob = document.getElementById('dob').value;
-    const address = document.getElementById('address').value.trim();
-    const mobile = document.getElementById('mobile').value.trim();
-    const jobProfile = document.getElementById('jobProfile').value.trim();
-    const status = document.getElementById('status').value;
-    const advance = parseFloat(document.getElementById('advance').value) || 0;
-    const finalAmt = parseFloat(document.getElementById('final').value) || 0;
-
-    // basic validation
-    if (!name) { showToast('Enter name', '#b91c1c'); return; }
-    if (!/^[A-Z0-9]{8}$/.test(passport)) { showToast('Passport must be 8 alphanumeric', '#b91c1c'); return; }
-    if (!/^[0-9]{10}$/.test(mobile)) { showToast('Enter valid 10 digit mobile', '#b91c1c'); return; }
-
-    // choose photo to send: newly uploaded base64 OR keep existing photo (important)
-    const photoToSend = newPhotoBase64 || keepExistingPhoto || '';
-
-    // show quick logs in console to help debugging
-    console.log('---- SUBMIT APPLICANT ----');
-    console.log('Mode:', editingIndex >= 0 ? 'edit' : 'add');
-    console.log('RowIndex:', editingRowIndex);
-    console.log('Name:', name);
-    console.log('Status:', status);
-    console.log('Photo length:', photoToSend ? photoToSend.length : 0);
-    console.log('Token present:', !!token);
-
-    // Build URLSearchParams (first attempt)
-    const params = new URLSearchParams();
-    params.append('token', token);
-    params.append('action', editingIndex >= 0 ? 'edit' : 'add');
-    params.append('name', name);
-    params.append('passport', passport);
-    params.append('mobile', mobile);
-    params.append('jobProfile', jobProfile);
-    params.append('dob', dob);
-    params.append('address', address);
-    params.append('status', status);
-    params.append('advance', String(advance));
-    params.append('final', String(finalAmt));
-    params.append('photo', photoToSend);
-    if (editingIndex >= 0) params.append('rowIndex', String(editingRowIndex));
-
-    showToast('Saving...', '#0ea5a2');
-
-    // First try: normal form-encoded POST
+  if (form) form.addEventListener('submit', async (e) => {
+    e.preventDefault();
     try {
-      const response = await fetch(SCRIPT_URL, { method: 'POST', body: params });
-      const text = await response.text();
-      console.log('POST (form) status:', response.status, 'body:', text);
+      const token = getToken();
+      if (!token) { logout(); return; }
 
-      let result;
-      try { result = JSON.parse(text); } catch (e) { result = { result: 'error', message: text }; }
+      const name = document.getElementById('name').value.trim();
+      const passport = document.getElementById('passport').value.trim();
+      const dob = document.getElementById('dob').value;
+      const address = document.getElementById('address').value.trim();
+      const mobile = document.getElementById('mobile').value.trim();
+      const jobProfile = document.getElementById('jobProfile').value.trim();
+      const status = document.getElementById('status').value;
+      const advance = parseFloat(document.getElementById('advance').value) || 0;
+      const finalAmt = parseFloat(document.getElementById('final').value) || 0;
+
+      if (!/^[A-Z0-9]{8}$/.test(passport)) {
+        showToast('Passport must be exactly 8 alphanumeric characters', '#b91c1c');
+        return;
+      }
+      if (!/^[0-9]{10}$/.test(mobile)) {
+        showToast('Enter a valid 10-digit mobile number', '#b91c1c');
+        return;
+      }
+
+      const photoToSend = newPhotoBase64 || keepExistingPhoto || '';
+
+      const fd = new URLSearchParams();
+      fd.append('token', token);
+      fd.append('action', editingIndex >= 0 ? 'edit' : 'add');
+      fd.append('name', name);
+      fd.append('passport', passport);
+      fd.append('mobile', mobile);
+      fd.append('jobProfile', jobProfile);
+      fd.append('dob', dob);
+      fd.append('address', address);
+      fd.append('status', status);
+      fd.append('advance', advance);
+      fd.append('final', finalAmt);
+      fd.append('photo', photoToSend);
+
+      if (editingIndex >= 0) fd.append('rowIndex', editingRowIndex);
+
+      showToast('Saving...', '#0ea5a2');
+      const res = await postToScript(fd);
+      const result = res.body;
 
       if (result.result === 'success') {
-        showToast(editingIndex >= 0 ? 'Updated successfully' : 'Added successfully', '#16a34a');
-        // cleanup and reload
+        showToast(editingIndex >= 0 ? 'Applicant updated successfully' : 'Applicant added successfully', '#16a34a');
         editingIndex = -1; editingRowIndex = -1; newPhotoBase64 = ''; keepExistingPhoto = '';
         form.reset(); if (photoPreview) photoPreview.innerHTML = '';
         if (modal) modal.classList.add('hidden');
         await loadData();
-        return;
       } else {
-        // if server explicitly says invalid row or other error, try JSON fallback below
-        console.warn('Form POST returned error, will try JSON fallback if appropriate:', result);
+        if (/unauthor/i.test(result.message || '')) { showToast('Session expired. Login again.', '#b91c1c'); setTimeout(logout, 900); return; }
+        showToast('Save failed: ' + (result.message || 'Unknown'), '#b91c1c');
       }
     } catch (err) {
-      console.warn('Form POST failed (network/encoding). Will try JSON fallback. Error:', err);
+      console.error('save error:', err);
+      showToast('Network error while saving. Check console.', '#b91c1c');
     }
-
-    // SECOND ATTEMPT (fallback): send JSON body (sometimes Apps Script handles JSON payloads better)
-    try {
-      const jsonBody = {
-        token,
-        action: editingIndex >= 0 ? 'edit' : 'add',
-        name, passport, mobile, jobProfile, dob, address, status,
-        advance: Number(advance), final: Number(finalAmt), photo: photoToSend
-      };
-      if (editingIndex >= 0) jsonBody.rowIndex = Number(editingRowIndex);
-
-      console.log('Attempting JSON POST fallback, byteLength approx:', (JSON.stringify(jsonBody).length));
-      const response2 = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(jsonBody)
-      });
-      const text2 = await response2.text();
-      console.log('POST (json) status:', response2.status, 'body:', text2);
-
-      let result2;
-      try { result2 = JSON.parse(text2); } catch (e) { result2 = { result: 'error', message: text2 }; }
-
-      if (result2.result === 'success') {
-        showToast(editingIndex >= 0 ? 'Updated successfully (json)' : 'Added successfully (json)', '#16a34a');
-        editingIndex = -1; editingRowIndex = -1; newPhotoBase64 = ''; keepExistingPhoto = '';
-        form.reset(); if (photoPreview) photoPreview.innerHTML = '';
-        if (modal) modal.classList.add('hidden');
-        await loadData();
-        return;
-      } else {
-        if (handleAuthError(result2)) return;
-        showToast('Save failed: ' + (result2.message || 'Unknown'), '#b91c1c');
-        console.error('Both attempts failed. Form error:', result2);
-      }
-    } catch (err2) {
-      console.error('JSON POST fallback also failed:', err2);
-      showToast('Network error while saving. See console.', '#b91c1c');
-    }
-
-  } catch (outerErr) {
-    console.error('Unexpected save error:', outerErr);
-    showToast('Unexpected error. See console.', '#b91c1c');
-  }
-});
-
+  });
 
   // ---------- Edit / Delete / View handlers ----------
   window.editApplicant = function (index) {
