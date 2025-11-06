@@ -4,29 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Login - AS Overseas VisaTracker</title>
+  <!-- dev CDN OK for testing; replace with built CSS for production -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
   <style>
-    body {
-      background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .login-box {
-      animation: slideUp 0.4s ease-out;
-    }
-    @keyframes slideUp {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
+    body { background: linear-gradient(135deg,#16a34a 0%,#15803d 100%); min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .login-box { animation: slideUp 0.35s ease-out; }
+    @keyframes slideUp { from{opacity:0; transform: translateY(16px)} to{opacity:1; transform: translateY(0)} }
   </style>
 </head>
 <body>
@@ -40,19 +24,19 @@
       <div>
         <label class="block text-sm font-semibold text-gray-700 mb-2">Username</label>
         <input id="username" type="text" required autocomplete="username"
-          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
           placeholder="Enter your username" />
       </div>
 
       <div>
         <label class="block text-sm font-semibold text-gray-700 mb-2">Password</label>
         <input id="password" type="password" required autocomplete="current-password"
-          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
           placeholder="Enter your password" />
       </div>
 
       <button type="submit" id="login-btn"
-        class="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+        class="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors">
         Login
       </button>
     </form>
@@ -60,72 +44,62 @@
 
   <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
   <script>
-    // IMPORTANT: put your Apps Script web app URL here (same as used by index/script.js)
-    const SCRIPT_URL = '<https://script.google.com/macros/s/AKfycby8vSxqgHTn1RORtUw3EuFgCf9MgQx1zGeJAUgKTaIDciaAz5J2zvMH8FTD2FDOi5lN/exec>';
+    // === CLEAN, EXACT Web App URL (NO < or invisible chars) ===
+    let SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby8vSxqgHTn1RORtUw3EuFgCf9MgQx1zGeJAUgKTaIDciaAz5J2zvMH8FTD2FDOi5lN/exec';
+
+    // guard against accidental leading BOM or stray whitespace
+    SCRIPT_URL = SCRIPT_URL.replace(/^\uFEFF/, '').trim();
 
     function showToast(text, bg = '#16a34a') {
-      Toastify({
-        text,
-        duration: 3000,
-        gravity: 'top',
-        position: 'right',
-        style: { background: bg },
-      }).showToast();
+      Toastify({ text, duration: 3000, gravity: 'top', position: 'right', style: { background: bg } }).showToast();
     }
 
-    // If already logged in, go to index
-    const existingToken = sessionStorage.getItem('visa_token');
-    if (existingToken) {
+    // if already logged in -> index
+    if (sessionStorage.getItem('visa_token')) {
       window.location.href = 'index.html';
     }
 
-    const form = document.getElementById('login-form');
-    const loginBtn = document.getElementById('login-btn');
-
-    form.addEventListener('submit', async (e) => {
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-
+      const loginBtn = document.getElementById('login-btn');
       const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
 
-      if (!username || !password) {
-        showToast('Please enter username and password', '#b91c1c');
-        return;
-      }
+      if (!username || !password) { showToast('Enter username & password', '#b91c1c'); return; }
 
       loginBtn.disabled = true;
       loginBtn.textContent = 'Logging in...';
 
       try {
+        // Build URL object to make future debug logs easier
+        const postUrl = new URL(SCRIPT_URL);
+        console.log('Login POST to:', postUrl.toString());
+
         const formData = new URLSearchParams();
         formData.append('action', 'auth');
         formData.append('username', username);
         formData.append('password', password);
 
-        const response = await fetch(SCRIPT_URL, {
-          method: 'POST',
-          body: formData
-        });
-
-        // Try parse JSON; if parse fails, show raw text
-        const text = await response.text();
+        const resp = await fetch(postUrl.toString(), { method: 'POST', body: formData });
+        console.log('Login status:', resp.status);
+        const text = await resp.text();
+        console.log('Login body:', text);
         let result;
         try { result = JSON.parse(text); } catch (err) { result = { result: 'error', message: text }; }
 
         if (result.result === 'success') {
           sessionStorage.setItem('visa_token', result.token);
-          sessionStorage.setItem('visa_username', result.username);
-          showToast('Login successful! Redirecting...', '#16a34a');
-          setTimeout(() => window.location.href = 'index.html', 800);
+          sessionStorage.setItem('visa_username', result.username || username);
+          showToast('Login successful!', '#16a34a');
+          setTimeout(() => window.location.href = 'index.html', 700);
         } else {
           showToast(result.message || 'Login failed', '#b91c1c');
           loginBtn.disabled = false;
           loginBtn.textContent = 'Login';
         }
-
-      } catch (error) {
-        console.error('Login error:', error);
-        showToast('Network error. Please check your connection.', '#b91c1c');
+      } catch (err) {
+        console.error('Login exception:', err);
+        showToast('Network error. Check console.', '#b91c1c');
         loginBtn.disabled = false;
         loginBtn.textContent = 'Login';
       }
