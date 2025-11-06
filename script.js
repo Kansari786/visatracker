@@ -1,6 +1,6 @@
-// VisaTracker - script.js (Updated)
+// VisaTracker - script.js (Fixed)
 // IMPORTANT: set this to the SAME web app URL you used in login.html
-const SCRIPT_URL = '<https://script.google.com/macros/s/AKfycby8vSxqgHTn1RORtUw3EuFgCf9MgQx1zGeJAUgKTaIDciaAz5J2zvMH8FTD2FDOi5lN/exec>';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby8vSxqgHTn1RORtUw3EuFgCf9MgQx1zGeJAUgKTaIDciaAz5J2zvMH8FTD2FDOi5lN/exec'.replace(/^\uFEFF/,'').trim();
 
 function getToken() {
   return sessionStorage.getItem('visa_token');
@@ -57,6 +57,10 @@ document.addEventListener('DOMContentLoaded', () => {
   if (logoutBtn) logoutBtn.addEventListener('click', logout);
 
   function showToast(text, bg = '#16a34a') {
+    if (typeof Toastify === 'undefined') {
+      console.log('Toast:', text);
+      return;
+    }
     Toastify({
       text,
       duration: 3000,
@@ -67,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function showLoading(show) {
+    if (!loadingIndicator) return;
     loadingIndicator.classList.toggle('hidden', !show);
   }
 
@@ -120,12 +125,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
-      const month = monthFilterSelect.value;
-      const year = yearFilterSelect.value;
+      const month = monthFilterSelect ? monthFilterSelect.value : 'all';
+      const year = yearFilterSelect ? yearFilterSelect.value : '';
+
       let url = SCRIPT_URL + `?token=${encodeURIComponent(token)}`;
 
-      if (month !== 'all') url += `&month=${month}`;
-      if (year) url += `&year=${year}`;
+      if (month !== 'all') url += `&month=${encodeURIComponent(month)}`;
+      if (year) url += `&year=${encodeURIComponent(year)}`;
 
       const response = await fetch(url);
       const text = await response.text();
@@ -133,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try { data = JSON.parse(text); } catch (err) { data = { result: 'error', message: text }; }
 
       if (data.result === 'success') {
-        applicants = data.applicants.map((row, idx) => ({
+        applicants = (data.applicants || []).map((row, idx) => ({
           rowIndex: idx + 2,
           timestamp: row[0],
           name: row[1] || '',
@@ -149,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }));
 
         renderTable();
-        const monthName = month === 'all' ? 'All months' : new Date(2025, month - 1).toLocaleString('default', { month: 'long' });
+        const monthName = (month === 'all' || !month) ? 'All months' : new Date(2025, (Number(month) - 1)).toLocaleString('default', { month: 'long' });
         showToast(`Loaded ${applicants.length} applicants (${monthName} ${year})`, '#16a34a');
       } else {
         if (handleAuthError(data)) return;
@@ -164,6 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function renderTable(filtered = applicants) {
+    if (!tableBody) return;
     tableBody.innerHTML = '';
 
     if (!filtered.length) {
@@ -209,146 +216,158 @@ document.addEventListener('DOMContentLoaded', () => {
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  addBtn.addEventListener('click', () => {
-    editingIndex = -1;
-    editingRowIndex = -1;
-    modalTitle.textContent = 'Add Applicant';
-    form.reset();
-    newPhotoBase64 = '';
-    keepExistingPhoto = '';
-    photoPreview.innerHTML = '';
-    modal.classList.remove('hidden');
-  });
-
-  closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
-  cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
-
-  photoInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) {
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      editingIndex = -1;
+      editingRowIndex = -1;
+      if (modalTitle) modalTitle.textContent = 'Add Applicant';
+      if (form) form.reset();
       newPhotoBase64 = '';
-      photoPreview.innerHTML = keepExistingPhoto ? `<img src="${keepExistingPhoto}" class="details-photo" alt="current">` : '';
-      return;
-    }
-    if (!file.type.startsWith('image/')) {
-      showToast('Please upload an image file', '#b91c1c');
-      photoInput.value = '';
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      showToast('Image must be less than 2 MB', '#b91c1c');
-      photoInput.value = '';
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      newPhotoBase64 = reader.result;
-      photoPreview.innerHTML = `<img src="${newPhotoBase64}" class="details-photo" alt="preview">`;
-    };
-    reader.readAsDataURL(file);
-  });
-
-  document.getElementById('passport').addEventListener('input', (e) => {
-    let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
-    e.target.value = v.length > 8 ? v.slice(0, 8) : v;
-  });
-
-  document.getElementById('mobile').addEventListener('input', (e) => {
-    e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
-  });
-
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const token = getToken();
-    if (!token) {
-      logout();
-      return;
-    }
-
-    const name = document.getElementById('name').value.trim();
-    const passport = document.getElementById('passport').value.trim();
-    const dob = document.getElementById('dob').value;
-    const address = document.getElementById('address').value.trim();
-    const mobile = document.getElementById('mobile').value.trim();
-    const jobProfile = document.getElementById('jobProfile').value.trim();
-    const status = document.getElementById('status').value;
-    const advance = parseFloat(document.getElementById('advance').value) || 0;
-    const finalAmt = parseFloat(document.getElementById('final').value) || 0;
-
-    if (!/^[A-Z0-9]{8}$/.test(passport)) {
-      showToast('Passport must be exactly 8 alphanumeric characters', '#b91c1c');
-      return;
-    }
-
-    if (!/^[0-9]{10}$/.test(mobile)) {
-      showToast('Enter a valid 10-digit mobile number', '#b91c1c');
-      return;
-    }
-
-    // Use new photo if uploaded, otherwise keep existing
-    const photoToSend = newPhotoBase64 || keepExistingPhoto || '';
-
-    console.log('Submitting form: ', {
-      action: editingIndex >= 0 ? 'edit' : 'add',
-      status, photoLength: photoToSend.length, rowIndex: editingRowIndex
+      keepExistingPhoto = '';
+      if (photoPreview) photoPreview.innerHTML = '';
+      if (modal) modal.classList.remove('hidden');
     });
+  }
 
-    const formData = new URLSearchParams();
-    formData.append('token', token);
-    formData.append('action', editingIndex >= 0 ? 'edit' : 'add');
-    formData.append('name', name);
-    formData.append('passport', passport);
-    formData.append('mobile', mobile);
-    formData.append('jobProfile', jobProfile);
-    formData.append('dob', dob);
-    formData.append('address', address);
-    formData.append('status', status);
-    formData.append('advance', advance);
-    formData.append('final', finalAmt);
-    formData.append('photo', photoToSend);
+  if (closeModalBtn) closeModalBtn.addEventListener('click', () => modal.classList.add('hidden'));
+  if (cancelBtn) cancelBtn.addEventListener('click', () => modal.classList.add('hidden'));
 
-    if (editingIndex >= 0) {
-      formData.append('rowIndex', editingRowIndex);
-    }
-
-    try {
-      showToast('Saving...', '#0ea5a2');
-
-      const response = await fetch(SCRIPT_URL, {
-        method: 'POST',
-        body: formData
-      });
-
-      const text = await response.text();
-      let result;
-      try { result = JSON.parse(text); } catch (err) { result = { result: 'error', message: text }; }
-
-      console.log('Server response:', result);
-
-      if (result.result === 'success') {
-        showToast(editingIndex >= 0 ? 'Applicant updated successfully' : 'Applicant added successfully', '#16a34a');
-
-        editingIndex = -1;
-        editingRowIndex = -1;
+  if (photoInput) {
+    photoInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) {
         newPhotoBase64 = '';
-        keepExistingPhoto = '';
+        photoPreview.innerHTML = keepExistingPhoto ? `<img src="${keepExistingPhoto}" class="details-photo" alt="current">` : '';
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        showToast('Please upload an image file', '#b91c1c');
+        photoInput.value = '';
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        showToast('Image must be less than 2 MB', '#b91c1c');
+        photoInput.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        newPhotoBase64 = reader.result;
+        photoPreview.innerHTML = `<img src="${newPhotoBase64}" class="details-photo" alt="preview">`;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
 
-        form.reset();
-        photoPreview.innerHTML = '';
-        modal.classList.add('hidden');
+  const passportInput = document.getElementById('passport');
+  if (passportInput) {
+    passportInput.addEventListener('input', (e) => {
+      let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      e.target.value = v.length > 8 ? v.slice(0, 8) : v;
+    });
+  }
 
-        await loadData();
-      } else {
-        if (handleAuthError(result)) return;
-        showToast('Error: ' + (result.message || 'Save failed'), '#b91c1c');
+  const mobileInput = document.getElementById('mobile');
+  if (mobileInput) {
+    mobileInput.addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+    });
+  }
+
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const token = getToken();
+      if (!token) {
+        logout();
+        return;
       }
 
-    } catch (error) {
-      console.error('Save error:', error);
-      showToast('Network error. Please check your connection and webapp URL.', '#b91c1c');
-    }
-  });
+      const name = document.getElementById('name').value.trim();
+      const passport = document.getElementById('passport').value.trim();
+      const dob = document.getElementById('dob').value;
+      const address = document.getElementById('address').value.trim();
+      const mobile = document.getElementById('mobile').value.trim();
+      const jobProfile = document.getElementById('jobProfile').value.trim();
+      const status = document.getElementById('status').value;
+      const advance = parseFloat(document.getElementById('advance').value) || 0;
+      const finalAmt = parseFloat(document.getElementById('final').value) || 0;
+
+      if (!/^[A-Z0-9]{8}$/.test(passport)) {
+        showToast('Passport must be exactly 8 alphanumeric characters', '#b91c1c');
+        return;
+      }
+
+      if (!/^[0-9]{10}$/.test(mobile)) {
+        showToast('Enter a valid 10-digit mobile number', '#b91c1c');
+        return;
+      }
+
+      // Use new photo if uploaded, otherwise keep existing
+      const photoToSend = newPhotoBase64 || keepExistingPhoto || '';
+
+      console.log('Submitting form: ', {
+        action: editingIndex >= 0 ? 'edit' : 'add',
+        status, photoLength: photoToSend.length, rowIndex: editingRowIndex
+      });
+
+      const formData = new URLSearchParams();
+      formData.append('token', token);
+      formData.append('action', editingIndex >= 0 ? 'edit' : 'add');
+      formData.append('name', name);
+      formData.append('passport', passport);
+      formData.append('mobile', mobile);
+      formData.append('jobProfile', jobProfile);
+      formData.append('dob', dob);
+      formData.append('address', address);
+      formData.append('status', status);
+      formData.append('advance', advance);
+      formData.append('final', finalAmt);
+      formData.append('photo', photoToSend);
+
+      if (editingIndex >= 0) {
+        formData.append('rowIndex', editingRowIndex);
+      }
+
+      try {
+        showToast('Saving...', '#0ea5a2');
+
+        const response = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          body: formData
+        });
+
+        const text = await response.text();
+        let result;
+        try { result = JSON.parse(text); } catch (err) { result = { result: 'error', message: text }; }
+
+        console.log('Server response:', result);
+
+        if (result.result === 'success') {
+          showToast(editingIndex >= 0 ? 'Applicant updated successfully' : 'Applicant added successfully', '#16a34a');
+
+          editingIndex = -1;
+          editingRowIndex = -1;
+          newPhotoBase64 = '';
+          keepExistingPhoto = '';
+
+          form.reset();
+          photoPreview.innerHTML = '';
+          if (modal) modal.classList.add('hidden');
+
+          await loadData();
+        } else {
+          if (handleAuthError(result)) return;
+          showToast('Error: ' + (result.message || 'Save failed'), '#b91c1c');
+        }
+
+      } catch (error) {
+        console.error('Save error:', error);
+        showToast('Network error. Please check your connection and webapp URL.', '#b91c1c');
+      }
+    });
+  }
 
   window.editApplicant = function (index) {
     const a = applicants[index];
@@ -357,7 +376,7 @@ document.addEventListener('DOMContentLoaded', () => {
     editingIndex = index;
     editingRowIndex = a.rowIndex;
 
-    modalTitle.textContent = 'Edit Applicant';
+    if (modalTitle) modalTitle.textContent = 'Edit Applicant';
     document.getElementById('name').value = a.name;
     document.getElementById('passport').value = a.passport;
     document.getElementById('mobile').value = a.mobile;
@@ -373,9 +392,9 @@ document.addEventListener('DOMContentLoaded', () => {
     newPhotoBase64 = '';
 
     photoPreview.innerHTML = a.photo ? `<img src="${a.photo}" class="details-photo" alt="current">` : '';
-    photoInput.value = '';
+    if (photoInput) photoInput.value = '';
 
-    modal.classList.remove('hidden');
+    if (modal) modal.classList.remove('hidden');
   };
 
   window.deleteApplicant = async function (index) {
@@ -457,15 +476,15 @@ document.addEventListener('DOMContentLoaded', () => {
         <p class="text-sm font-semibold text-green-700 mt-1"><strong>Total Payment:</strong> ₹${formatNumber(total)}</p>
       </div>
     `;
-    detailsModal.classList.remove('hidden');
+    if (detailsModal) detailsModal.classList.remove('hidden');
   };
 
-  closeDetails.addEventListener('click', () => detailsModal.classList.add('hidden'));
-  closeDetails2.addEventListener('click', () => detailsModal.classList.add('hidden'));
+  if (closeDetails) closeDetails.addEventListener('click', () => detailsModal.classList.add('hidden'));
+  if (closeDetails2) closeDetails2.addEventListener('click', () => detailsModal.classList.add('hidden'));
 
   function applyFilters() {
-    const q = (searchInput.value || '').toLowerCase().trim();
-    const f = filterSelect.value;
+    const q = (searchInput && searchInput.value || '').toLowerCase().trim();
+    const f = filterSelect && filterSelect.value;
     const filtered = applicants.filter(a => {
       const matchesQ = (a.name || '').toLowerCase().includes(q) ||
                        (a.passport || '').toLowerCase().includes(q) ||
@@ -476,40 +495,42 @@ document.addEventListener('DOMContentLoaded', () => {
     renderTable(filtered);
   }
 
-  searchInput.addEventListener('input', applyFilters);
-  filterSelect.addEventListener('change', applyFilters);
-  monthFilterSelect.addEventListener('change', () => loadData());
-  yearFilterSelect.addEventListener('change', () => loadData());
+  if (searchInput) searchInput.addEventListener('input', applyFilters);
+  if (filterSelect) filterSelect.addEventListener('change', applyFilters);
+  if (monthFilterSelect) monthFilterSelect.addEventListener('change', () => loadData());
+  if (yearFilterSelect) yearFilterSelect.addEventListener('change', () => loadData());
 
-  exportCsvBtn.addEventListener('click', () => {
-    if (!applicants.length) {
-      showToast('No data to export', '#b91c1c');
-      return;
-    }
-    const csv = Papa.unparse(applicants.map(a => ({
-      name: a.name,
-      passport: a.passport,
-      mobile: a.mobile,
-      jobProfile: a.jobProfile,
-      dob: formatDate(a.dob),
-      age: calculateAge(a.dob),
-      address: a.address,
-      status: a.status,
-      advance: a.advance,
-      final: a.final,
-      total: Number(a.advance || 0) + Number(a.final || 0)
-    })));
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const aTag = document.createElement('a');
-    aTag.href = url;
-    aTag.download = 'visatracker_applicants.csv';
-    document.body.appendChild(aTag);
-    aTag.click();
-    aTag.remove();
-    URL.revokeObjectURL(url);
-    showToast('CSV exported', '#0ea5a2');
-  });
+  if (exportCsvBtn) {
+    exportCsvBtn.addEventListener('click', () => {
+      if (!applicants.length) {
+        showToast('No data to export', '#b91c1c');
+        return;
+      }
+      const csv = Papa.unparse(applicants.map(a => ({
+        name: a.name,
+        passport: a.passport,
+        mobile: a.mobile,
+        jobProfile: a.jobProfile,
+        dob: formatDate(a.dob),
+        age: calculateAge(a.dob),
+        address: a.address,
+        status: a.status,
+        advance: a.advance,
+        final: a.final,
+        total: Number(a.advance || 0) + Number(a.final || 0)
+      })));
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const aTag = document.createElement('a');
+      aTag.href = url;
+      aTag.download = 'visatracker_applicants.csv';
+      document.body.appendChild(aTag);
+      aTag.click();
+      aTag.remove();
+      URL.revokeObjectURL(url);
+      showToast('CSV exported', '#0ea5a2');
+    });
+  }
 
   loadData();
 });
